@@ -123,6 +123,7 @@ DungeonOracleDB = {
         {
             run_id = "uuid",
             dungeon_name = "The Deadmines",
+            instance_id = 36,
             started_at = 0,
             ended_at = 0,
             party = {
@@ -175,6 +176,9 @@ DungeonOracleDB = {
 
 - `dungeon_name`
   The user-facing dungeon identifier.
+
+- `instance_id`
+  The game-provided live instance identifier captured for the run.
 
 - `started_at` and `ended_at`
   Timestamps reserved for later time-based analysis.
