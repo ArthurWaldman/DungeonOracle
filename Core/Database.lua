@@ -38,6 +38,11 @@ DungeonOracle.Database = DungeonOracle.Database or {}
 --                 level = 28,
 --             },
 --         },
+--         first_death = {
+--             timestamp = 95, -- death time - start time
+--             num_bosses_beaten = 2,
+--             class = "WARRIOR",
+--         },
 --         boss_timer = {
 --             {
 --                 boss_id = 1716,
@@ -80,6 +85,11 @@ DungeonOracle.Database = DungeonOracle.Database or {}
 --                     class = "WARRIOR",
 --                     level = 28,
 --                 },
+--             },
+--             first_death = {
+--                 timestamp = 95, -- death time - start time
+--                 num_bosses_beaten = 2,
+--                 class = "WARRIOR",
 --             },
 --             boss_timer = {
 --                 {
@@ -147,6 +157,18 @@ local function copyDeathsSnapshot(deaths)
     end
 
     return copy
+end
+
+local function copyFirstDeathSnapshot(firstDeath)
+    if not firstDeath then
+        return nil
+    end
+
+    return {
+        timestamp = firstDeath.timestamp,
+        num_bosses_beaten = firstDeath.num_bosses_beaten,
+        class = firstDeath.class,
+    }
 end
 
 -- Copies the boss timer list so completed and active runs do not share nested
@@ -285,6 +307,7 @@ local function createOrderedCompletedRun(activeRun, endedAt)
         party = copyPartySnapshot(activeRun.party),
         replacements = sanitizeReplacementCount(activeRun.replacements),
         deaths = copyDeathsSnapshot(activeRun.deaths),
+        first_death = copyFirstDeathSnapshot(activeRun.first_death),
         boss_timer = copyBossTimerSnapshot(activeRun.boss_timer),
         boss_loot = copyBossLootSnapshot(activeRun.boss_loot),
     }
@@ -338,6 +361,7 @@ function Database.SetActiveRun(activeRun)
             party = copyPartySnapshot(activeRun.party),
             replacements = sanitizeReplacementCount(activeRun.replacements),
             deaths = copyDeathsSnapshot(activeRun.deaths),
+            first_death = copyFirstDeathSnapshot(activeRun.first_death),
             boss_timer = copyBossTimerSnapshot(activeRun.boss_timer),
             boss_loot = copyBossLootSnapshot(activeRun.boss_loot),
             pending_boss_loot_queue = copyPendingBossLootQueueSnapshot(activeRun.pending_boss_loot_queue),
@@ -369,6 +393,7 @@ function Database.GetActiveRun()
         party = copyPartySnapshot(DungeonOracleDB.active_run.party),
         replacements = sanitizeReplacementCount(DungeonOracleDB.active_run.replacements),
         deaths = copyDeathsSnapshot(DungeonOracleDB.active_run.deaths),
+        first_death = copyFirstDeathSnapshot(DungeonOracleDB.active_run.first_death),
         boss_timer = copyBossTimerSnapshot(DungeonOracleDB.active_run.boss_timer),
         boss_loot = copyBossLootSnapshot(DungeonOracleDB.active_run.boss_loot),
         pending_boss_loot_queue = copyPendingBossLootQueueSnapshot(DungeonOracleDB.active_run.pending_boss_loot_queue),

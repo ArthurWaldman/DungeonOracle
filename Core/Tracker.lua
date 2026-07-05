@@ -840,6 +840,23 @@ local function findTrackedPartyMemberByName(party, playerName)
     return nil
 end
 
+local function getBossesBeatenCount(activeRun)
+    local count = 0
+    local timerEntry
+
+    if not activeRun or not activeRun.boss_timer then
+        return 0
+    end
+
+    for _, timerEntry in ipairs(activeRun.boss_timer) do
+        if timerEntry and timerEntry.boss_id then
+            count = count + 1
+        end
+    end
+
+    return count
+end
+
 -- Appends one death record when a tracked party member dies during an active
 -- run. The snapshot is intentionally simple: class and level.
 local function recordPartyDeath(deadPlayerName)
@@ -860,6 +877,14 @@ local function recordPartyDeath(deadPlayerName)
         class = member.class,
         level = member.level,
     })
+
+    if not activeRun.first_death then
+        activeRun.first_death = {
+            timestamp = math.max(0, time() - (activeRun.started_at or time())),
+            num_bosses_beaten = getBossesBeatenCount(activeRun),
+            class = member.class,
+        }
+    end
 
     persistActiveRun()
     printMessage(string.format("recorded death for %s.", member.name or deadPlayerName or "party member"))
@@ -959,6 +984,7 @@ local function setActiveRun(runId, dungeonName, startedAt, zoneId, party, hardco
         party = party or {},
         replacements = 0,
         deaths = {},
+        first_death = nil,
         boss_timer = {},
         boss_loot = {},
         pending_boss_loot_queue = {},
@@ -995,6 +1021,7 @@ local function reactivateKnownRunByDungeon(dungeonName, zoneId)
         party = existingRun.party or {},
         replacements = existingRun.replacements or 0,
         deaths = existingRun.deaths or {},
+        first_death = existingRun.first_death,
         boss_timer = existingRun.boss_timer or {},
         boss_loot = existingRun.boss_loot or {},
         pending_boss_loot_queue = existingRun.pending_boss_loot_queue or {},
