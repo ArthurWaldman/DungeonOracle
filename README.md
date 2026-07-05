@@ -132,6 +132,12 @@ DungeonOracleDB = {
                 level = 28,
             },
         },
+        boss_timer = {
+            {
+                boss_id = 1716,
+                duration = 42, -- -1 means the timer failed after spirit release
+            },
+        },
     },
     records = {
         {
@@ -161,6 +167,12 @@ DungeonOracleDB = {
                 {
                     class = "WARRIOR",
                     level = 28,
+                },
+            },
+            boss_timer = {
+                {
+                    boss_id = 1716,
+                    duration = 42, -- -1 means the timer failed after spirit release
                 },
             },
         },
@@ -208,6 +220,9 @@ DungeonOracleDB = {
 
 - `deaths`
   A list of tracked party death snapshots. Each entry stores the dead player’s class and stored level value.
+
+- `boss_timer`
+  A list of completed boss kill timers. Each entry stores the tracked `boss_id` and the kill `duration` in seconds. A value of `-1` means the timer failed because the player released spirit before seeing the boss die.
 
 ## Dungeon Data
 

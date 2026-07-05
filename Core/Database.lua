@@ -38,6 +38,12 @@ DungeonOracle.Database = DungeonOracle.Database or {}
 --                 level = 28,
 --             },
 --         },
+--         boss_timer = {
+--             {
+--                 boss_id = 1716,
+--                 duration = 42, -- -1 means the timer failed after spirit release
+--             },
+--         },
 --     },
 --     records = {
 --         {
@@ -67,6 +73,12 @@ DungeonOracle.Database = DungeonOracle.Database or {}
 --                 {
 --                     class = "WARRIOR",
 --                     level = 28,
+--                 },
+--             },
+--             boss_timer = {
+--                 {
+--                     boss_id = 1716,
+--                     duration = 42, -- -1 means the timer failed after spirit release
 --                 },
 --             },
 --         },
@@ -122,6 +134,27 @@ local function copyDeathsSnapshot(deaths)
         copy[index] = {
             class = deathEntry.class,
             level = deathEntry.level,
+        }
+    end
+
+    return copy
+end
+
+-- Copies the boss timer list so completed and active runs do not share nested
+-- timer entries.
+local function copyBossTimerSnapshot(bossTimer)
+    local copy = {}
+    local index
+    local timerEntry
+
+    if not bossTimer then
+        return copy
+    end
+
+    for index, timerEntry in ipairs(bossTimer) do
+        copy[index] = {
+            boss_id = timerEntry.boss_id,
+            duration = timerEntry.duration,
         }
     end
 
@@ -199,6 +232,7 @@ local function createOrderedCompletedRun(activeRun, endedAt)
         party = copyPartySnapshot(activeRun.party),
         replacements = sanitizeReplacementCount(activeRun.replacements),
         deaths = copyDeathsSnapshot(activeRun.deaths),
+        boss_timer = copyBossTimerSnapshot(activeRun.boss_timer),
     }
 end
 
@@ -250,6 +284,7 @@ function Database.SetActiveRun(activeRun)
             party = copyPartySnapshot(activeRun.party),
             replacements = sanitizeReplacementCount(activeRun.replacements),
             deaths = copyDeathsSnapshot(activeRun.deaths),
+            boss_timer = copyBossTimerSnapshot(activeRun.boss_timer),
         }
     else
         DungeonOracleDB.active_run = nil
@@ -278,6 +313,7 @@ function Database.GetActiveRun()
         party = copyPartySnapshot(DungeonOracleDB.active_run.party),
         replacements = sanitizeReplacementCount(DungeonOracleDB.active_run.replacements),
         deaths = copyDeathsSnapshot(DungeonOracleDB.active_run.deaths),
+        boss_timer = copyBossTimerSnapshot(DungeonOracleDB.active_run.boss_timer),
     }
 end
 

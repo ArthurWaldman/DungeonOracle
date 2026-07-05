@@ -33,6 +33,7 @@ local function createInitialState()
         last_zone_npc_id = nil,
         last_group_size = 0,
         last_replacement_signature = nil,
+        active_boss_engagements = {},
     }
 end
 
@@ -150,6 +151,35 @@ local function getCurrentInstanceInfo()
         mapId = C_Map.GetBestMapForUnit and C_Map.GetBestMapForUnit("player") or nil,
         entered_at = time(),
     }
+end
+
+-- Returns the currently tracked dungeon definition for the player's active
+-- supported dungeon context.
+local function getCurrentTrackedDungeonDefinition()
+    local currentDungeon = Tracker.state.current_dungeon
+
+    if not currentDungeon or not currentDungeon.id or not DungeonOracleData or not DungeonOracleData.dungeons then
+        return nil
+    end
+
+    return DungeonOracleData.dungeons[currentDungeon.id]
+end
+
+local function getTrackedBossByNpcId(npcId)
+    local dungeonDefinition = getCurrentTrackedDungeonDefinition()
+    local boss
+
+    if not dungeonDefinition or not dungeonDefinition.bosses or not npcId then
+        return nil
+    end
+
+    for _, boss in ipairs(dungeonDefinition.bosses) do
+        if boss.id == npcId then
+            return boss
+        end
+    end
+
+    return nil
 end
 
 -- Looks up the static dungeon definition for the current instance.
@@ -603,6 +633,105 @@ local function collectPartySnapshot()
     return finalizePartyRoles(buildPartySnapshot())
 end
 
+local function hasBossTimerEntry(activeRun, bossId)
+    local timerEntry
+
+    if not activeRun or not activeRun.boss_timer or not bossId then
+        return false
+    end
+
+    for _, timerEntry in ipairs(activeRun.boss_timer) do
+        if timerEntry.boss_id == bossId then
+            return true
+        end
+    end
+
+    return false
+end
+
+-- Starts the in-memory timer for a boss the first time we see that boss
+-- involved in combat during the current run.
+local function recordBossEngagementStart(bossId, bossName)
+    local activeRun = Tracker.state.active_run
+
+    if not activeRun or not bossId then
+        return false
+    end
+
+    if hasBossTimerEntry(activeRun, bossId) or Tracker.state.active_boss_engagements[bossId] then
+        return false
+    end
+
+    Tracker.state.active_boss_engagements[bossId] = time()
+    printMessage(string.format("boss timer started for %s.", bossName or tostring(bossId)))
+    return true
+end
+
+-- Completes a started boss timer once that same boss dies.
+local function recordBossEngagementEnd(bossId, bossName)
+    local activeRun = Tracker.state.active_run
+    local startedAt
+    local duration
+
+    if not activeRun or not bossId then
+        return false
+    end
+
+    startedAt = Tracker.state.active_boss_engagements[bossId]
+    if not startedAt or hasBossTimerEntry(activeRun, bossId) then
+        return false
+    end
+
+    duration = math.max(0, time() - startedAt)
+    activeRun.boss_timer = activeRun.boss_timer or {}
+    table.insert(activeRun.boss_timer, {
+        boss_id = bossId,
+        duration = duration,
+    })
+
+    Tracker.state.active_boss_engagements[bossId] = nil
+    persistActiveRun()
+    printMessage(string.format("boss timer recorded for %s: %d seconds.", bossName or tostring(bossId), duration))
+    return true
+end
+
+-- Marks any in-progress boss timers as failed when the player releases as a
+-- ghost before seeing the boss die.
+local function recordFailedBossEngagementsOnRelease()
+    local activeRun = Tracker.state.active_run
+    local hadFailures = false
+    local bossId
+    local boss
+
+    if not activeRun or not Tracker.state.active_boss_engagements then
+        return false
+    end
+
+    activeRun.boss_timer = activeRun.boss_timer or {}
+
+    for bossId in pairs(Tracker.state.active_boss_engagements) do
+        if not hasBossTimerEntry(activeRun, bossId) then
+            boss = getTrackedBossByNpcId(bossId)
+
+            table.insert(activeRun.boss_timer, {
+                boss_id = bossId,
+                duration = -1,
+            })
+
+            printMessage(string.format("boss timer failed for %s after spirit release.", boss and boss.name or tostring(bossId)))
+            hadFailures = true
+        end
+
+        Tracker.state.active_boss_engagements[bossId] = nil
+    end
+
+    if hadFailures then
+        persistActiveRun()
+    end
+
+    return hadFailures
+end
+
 local function findTrackedPartyMemberByName(party, playerName)
     local normalizedPlayerName = normalizePlayerName(playerName)
     local member
@@ -659,10 +788,12 @@ local function setActiveRun(runId, dungeonName, startedAt, zoneId, party, hardco
         party = party or {},
         replacements = 0,
         deaths = {},
+        boss_timer = {},
     }
 
     Tracker.state.last_group_size = #Tracker.state.active_run.party
     Tracker.state.last_replacement_signature = buildPartyNameSignature(Tracker.state.active_run.party)
+    Tracker.state.active_boss_engagements = {}
     persistActiveRun()
 end
 
@@ -690,10 +821,12 @@ local function reactivateKnownRunByDungeon(dungeonName, zoneId)
         party = existingRun.party or {},
         replacements = existingRun.replacements or 0,
         deaths = existingRun.deaths or {},
+        boss_timer = existingRun.boss_timer or {},
     }
 
     Tracker.state.last_group_size = getTrackedGroupSize()
     Tracker.state.last_replacement_signature = buildPartyNameSignature(Tracker.state.active_run.party)
+    Tracker.state.active_boss_engagements = {}
     persistActiveRun()
     return true
 end
@@ -729,6 +862,7 @@ local function transitionToNewRunForZoneShift()
     end
 
     Tracker.state.active_run = nil
+    Tracker.state.active_boss_engagements = {}
     printMessage(string.format(
         "completed run %s because %s changed from zone id %d to %d.",
         previousRunId or "-",
@@ -885,6 +1019,7 @@ local function finalizeOutsideInstanceTimeout(timeoutToken)
     end
 
     Tracker.state.active_run = nil
+    Tracker.state.active_boss_engagements = {}
     printMessage("previous run completed after being outside all instances for 30 seconds.")
 
     if DungeonOracle.UI and DungeonOracle.UI.HideTrackerWindow then
@@ -933,6 +1068,31 @@ function Tracker.GetOutsideTimeoutRemainingSeconds()
     return getOutsideTimeoutRemainingSeconds()
 end
 
+-- Public: returns the currently active boss timer, if one exists, so the
+-- tracker window can show it live.
+function Tracker.GetCurrentBossTimer()
+    local activeBossEngagements = Tracker.state and Tracker.state.active_boss_engagements or nil
+    local bossId
+    local startedAt
+    local boss
+
+    if not activeBossEngagements then
+        return nil
+    end
+
+    for bossId, startedAt in pairs(activeBossEngagements) do
+        boss = getTrackedBossByNpcId(bossId)
+
+        return {
+            boss_id = bossId,
+            boss_name = boss and boss.name or tostring(bossId),
+            duration = math.max(0, time() - startedAt),
+        }
+    end
+
+    return nil
+end
+
 -- Completes the current active run when the player enters a different
 -- supported dungeon context. That includes either a different instance of the
 -- same dungeon or a completely different dungeon.
@@ -957,6 +1117,7 @@ local function completeActiveRunForDungeonTransition()
     end
 
     Tracker.state.active_run = nil
+    Tracker.state.active_boss_engagements = {}
     printMessage(string.format("previous run completed because %s was entered.", currentDungeon.name))
 
     return true
@@ -975,6 +1136,7 @@ local function updateCurrentDungeon()
             entered_at = instanceInfo.entered_at,
         }
         Tracker.state.last_zone_npc_id = nil
+        Tracker.state.active_boss_engagements = {}
         clearOutsideInstanceTimeout()
 
         if DungeonOracle.UI and DungeonOracle.UI.ResetTrackerLogs then
@@ -988,6 +1150,10 @@ local function updateCurrentDungeon()
         printMessage(string.format("detected supported dungeon: %s.", dungeonDefinition.name))
     else
         Tracker.state.current_dungeon = nil
+
+        if Tracker.state.active_run and isPlayerDeadOrGhost() then
+            recordFailedBossEngagementsOnRelease()
+        end
 
         if not instanceInfo and Tracker.state.active_run and not isPlayerDeadOrGhost() then
             beginOutsideInstanceTimeout()
@@ -1092,6 +1258,8 @@ function Tracker.HandleEvent(event, ...)
         local _, subEvent, _, sourceGUID, _, _, _, destGUID, destName = CombatLogGetCurrentEventInfo()
         local zoneId
         local npcId
+        local sourceBoss
+        local destBoss
 
         if canObserveCombatLogZone() and isReliableCombatLogSubEvent(subEvent) then
             zoneId, npcId = getZoneInfoFromGuid(sourceGUID)
@@ -1103,8 +1271,27 @@ function Tracker.HandleEvent(event, ...)
 
         resolveRunForCurrentDungeon()
 
+        _, npcId = getZoneInfoFromGuid(sourceGUID)
+        sourceBoss = getTrackedBossByNpcId(npcId)
+        _, npcId = getZoneInfoFromGuid(destGUID)
+        destBoss = getTrackedBossByNpcId(npcId)
+
+        if subEvent ~= "UNIT_DIED" and subEvent ~= "UNIT_DESTROYED" then
+            if sourceBoss then
+                recordBossEngagementStart(sourceBoss.id, sourceBoss.name)
+            end
+
+            if destBoss then
+                recordBossEngagementStart(destBoss.id, destBoss.name)
+            end
+        end
+
         if subEvent == "UNIT_DIED" then
             recordPartyDeath(destName)
+
+            if destBoss then
+                recordBossEngagementEnd(destBoss.id, destBoss.name)
+            end
         end
     end
 end

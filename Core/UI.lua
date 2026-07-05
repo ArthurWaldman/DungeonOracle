@@ -23,7 +23,7 @@ local MINIMAP_ICON = "Interface\\Icons\\INV_Misc_Note_01"
 local UPLOAD_URL = "https://www.dropbox.com/request/2okeud4m0vplo6e8nsmk"
 local PATH_FONT_SIZE = 9
 local TRACKER_WINDOW_WIDTH = 360
-local TRACKER_WINDOW_HEIGHT = 160
+local TRACKER_WINDOW_HEIGHT = 176
 local TRACKER_LOG_LINE_LIMIT = 8
 
 -- Tab definitions drive both the clickable tab buttons and the associated
@@ -251,8 +251,12 @@ local function createTrackerWindow()
     timerText:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -8)
     timerText:SetText("Reset Timer: Inactive")
 
+    local bossTimerText = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    bossTimerText:SetPoint("TOPLEFT", timerText, "BOTTOMLEFT", 0, -6)
+    bossTimerText:SetText("Boss Timer: Inactive")
+
     local runIdText = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    runIdText:SetPoint("TOPLEFT", timerText, "BOTTOMLEFT", 0, -6)
+    runIdText:SetPoint("TOPLEFT", bossTimerText, "BOTTOMLEFT", 0, -6)
     runIdText:SetText("Run ID: Inactive")
 
     local zoneIdText = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
@@ -271,6 +275,7 @@ local function createTrackerWindow()
 
     UI.trackerFrame = frame
     UI.trackerTimerText = timerText
+    UI.trackerBossTimerText = bossTimerText
     UI.trackerRunIdText = runIdText
     UI.trackerZoneIdText = zoneIdText
     UI.trackerLogText = logText
@@ -280,6 +285,7 @@ local function createTrackerWindow()
         local activeRun
         local currentDungeon
         local remainingSeconds
+        local bossTimer
         local zoneId
 
         self.elapsedSinceTimerRefresh = (self.elapsedSinceTimerRefresh or 0) + elapsed
@@ -298,6 +304,19 @@ local function createTrackerWindow()
                 UI.trackerTimerText:SetText(string.format("Reset Timer: %ds", remainingSeconds))
             else
                 UI.trackerTimerText:SetText("Reset Timer: Inactive")
+            end
+        end
+
+        bossTimer = DungeonOracle
+            and DungeonOracle.Tracker
+            and DungeonOracle.Tracker.GetCurrentBossTimer
+            and DungeonOracle.Tracker.GetCurrentBossTimer()
+
+        if UI.trackerBossTimerText then
+            if bossTimer then
+                UI.trackerBossTimerText:SetText(string.format("Boss Timer: %s %ds", bossTimer.boss_name or "-", bossTimer.duration or 0))
+            else
+                UI.trackerBossTimerText:SetText("Boss Timer: Inactive")
             end
         end
 
