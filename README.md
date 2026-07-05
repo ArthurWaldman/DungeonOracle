@@ -110,6 +110,18 @@ DungeonOracleDB = {
         zone_id = 13936,
         started_at = 1783243482,
         outside_instance_started_at = 1783243487,
+        party = {
+            {
+                class = "WARRIOR",
+                level = 60,
+                role = "TANK",
+            },
+            {
+                class = "MAGE",
+                level = 60,
+                role = "DAMAGER",
+            },
+        },
     },
     records = {
         {
@@ -119,6 +131,18 @@ DungeonOracleDB = {
             started_at = 1783243466,
             outside_instance_started_at = 1783243471,
             ended_at = 1783243482,
+            party = {
+                {
+                    class = "WARRIOR",
+                    level = 60,
+                    role = "TANK",
+                },
+                {
+                    class = "MAGE",
+                    level = 60,
+                    role = "DAMAGER",
+                },
+            },
         },
     },
 }
@@ -152,6 +176,9 @@ DungeonOracleDB = {
 
 - `ended_at`
   The Unix timestamp when the run was archived as complete.
+
+- `party`
+  A run-start snapshot of each player’s class, level, and inferred role.
 
 ## Dungeon Data
 

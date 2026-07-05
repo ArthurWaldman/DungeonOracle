@@ -16,6 +16,18 @@ DungeonOracle.Database = DungeonOracle.Database or {}
 --         zone_id = 13936,
 --         started_at = 1783243482,
 --         outside_instance_started_at = 1783243487,
+--         party = {
+--             {
+--                 class = "WARRIOR",
+--                 level = 60,
+--                 role = "TANK",
+--             },
+--             {
+--                 class = "MAGE",
+--                 level = 60,
+--                 role = "DAMAGER",
+--             },
+--         },
 --     },
 --     records = {
 --         {
@@ -25,6 +37,18 @@ DungeonOracle.Database = DungeonOracle.Database or {}
 --             started_at = 1783243466,
 --             outside_instance_started_at = 1783243471,
 --             ended_at = 1783243482,
+--             party = {
+--                 {
+--                     class = "WARRIOR",
+--                     level = 60,
+--                     role = "TANK",
+--                 },
+--                 {
+--                     class = "MAGE",
+--                     level = 60,
+--                     role = "DAMAGER",
+--                 },
+--             },
 --         },
 --     },
 -- }
@@ -39,6 +63,28 @@ DungeonOracleDB = DungeonOracleDB or {
 }
 
 local Database = DungeonOracle.Database
+
+-- Copies the party snapshot so nested member tables do not get shared across
+-- active and archived run objects.
+local function copyPartySnapshot(party)
+    local copy = {}
+    local index
+    local member
+
+    if not party then
+        return copy
+    end
+
+    for index, member in ipairs(party) do
+        copy[index] = {
+            class = member.class,
+            level = member.level,
+            role = member.role,
+        }
+    end
+
+    return copy
+end
 
 -- Returns a shallow copy so archived runs are not later mutated through the
 -- active_run reference.
@@ -89,6 +135,7 @@ local function createOrderedCompletedRun(activeRun, endedAt)
         started_at = activeRun.started_at,
         outside_instance_started_at = activeRun.outside_instance_started_at,
         ended_at = endedAt or time(),
+        party = copyPartySnapshot(activeRun.party),
     }
 end
 
@@ -128,7 +175,19 @@ end
 -- Public: stores the current shared run-start state.
 function Database.SetActiveRun(activeRun)
     Database.Initialize()
-    DungeonOracleDB.active_run = activeRun
+
+    if activeRun then
+        DungeonOracleDB.active_run = {
+            dungeon_name = activeRun.dungeon_name,
+            run_id = activeRun.run_id,
+            zone_id = activeRun.zone_id,
+            started_at = activeRun.started_at,
+            outside_instance_started_at = activeRun.outside_instance_started_at,
+            party = copyPartySnapshot(activeRun.party),
+        }
+    else
+        DungeonOracleDB.active_run = nil
+    end
 
     if activeRun and activeRun.run_id then
         removeRecordByRunId(activeRun.run_id)
@@ -138,7 +197,19 @@ end
 -- Public: returns the current shared run-start state, if present.
 function Database.GetActiveRun()
     Database.Initialize()
-    return DungeonOracleDB.active_run
+
+    if not DungeonOracleDB.active_run then
+        return nil
+    end
+
+    return {
+        dungeon_name = DungeonOracleDB.active_run.dungeon_name,
+        run_id = DungeonOracleDB.active_run.run_id,
+        zone_id = DungeonOracleDB.active_run.zone_id,
+        started_at = DungeonOracleDB.active_run.started_at,
+        outside_instance_started_at = DungeonOracleDB.active_run.outside_instance_started_at,
+        party = copyPartySnapshot(DungeonOracleDB.active_run.party),
+    }
 end
 
 -- Public: returns the number of completed records currently stored.

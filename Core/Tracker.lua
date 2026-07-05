@@ -66,6 +66,12 @@ end
 
 local startFreshRun
 
+local ROLE_DAMAGER = "DAMAGER"
+local ROLE_HEALER = "HEALER"
+local ROLE_TANK = "TANK"
+local SHADOWFORM_SPELL_ID = 15473
+local RIGHTEOUS_FURY_SPELL_ID = 25780
+
 -- Produces a simple UUID-like identifier that is sufficient for run identity.
 local function createRunId()
     local template = "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx"
@@ -232,15 +238,248 @@ local function observeZoneId(zoneId, npcId, sourceLabel)
     return currentDungeon.zone_id
 end
 
+-- Returns the group units that should be sampled when a run begins.
+local function getTrackedPartyUnits()
+    local units = { "player" }
+    local index
+
+    if IsInRaid and IsInRaid() then
+        return units
+    end
+
+    for index = 1, 4 do
+        if UnitExists("party" .. index) then
+            table.insert(units, "party" .. index)
+        end
+    end
+
+    return units
+end
+
+-- Checks whether a unit currently has the requested buff. This lets role
+-- inference use a few strong live signals without committing to full combat
+-- analytics yet.
+local function unitHasBuff(unitToken, spellName)
+    local buffIndex = 1
+    local buffName
+
+    if not unitToken or not spellName or spellName == "" then
+        return false
+    end
+
+    while true do
+        buffName = UnitBuff(unitToken, buffIndex)
+        if not buffName then
+            return false
+        end
+
+        if buffName == spellName then
+            return true
+        end
+
+        buffIndex = buffIndex + 1
+    end
+end
+
+local function canTank(classFilename)
+    return classFilename == "WARRIOR" or classFilename == "DRUID" or classFilename == "PALADIN"
+end
+
+local function canHeal(classFilename)
+    return classFilename == "PRIEST"
+        or classFilename == "DRUID"
+        or classFilename == "SHAMAN"
+        or classFilename == "PALADIN"
+end
+
+local function isPureDamageClass(classFilename)
+    return classFilename == "MAGE"
+        or classFilename == "ROGUE"
+        or classFilename == "HUNTER"
+        or classFilename == "WARLOCK"
+end
+
+local function prefersHealing(member)
+    if member.class == "PRIEST" and not member.is_using_shadowform then
+        return true
+    end
+
+    return member.class == "DRUID" or member.class == "SHAMAN" or member.class == "PALADIN"
+end
+
+local function prefersTanking(member)
+    if member.class == "PALADIN" and member.has_righteous_fury then
+        return true
+    end
+
+    return member.class == "WARRIOR" or member.class == "DRUID" or member.class == "PALADIN"
+end
+
+local function getSingleRoleCandidateIndex(party, roleName)
+    local candidateIndex = nil
+    local candidateCount = 0
+    local index
+    local member
+
+    for index, member in ipairs(party) do
+        if (roleName == ROLE_TANK and canTank(member.class))
+            or (roleName == ROLE_HEALER and canHeal(member.class)) then
+            candidateIndex = index
+            candidateCount = candidateCount + 1
+        end
+    end
+
+    if candidateCount == 1 then
+        return candidateIndex
+    end
+
+    return nil
+end
+
+local function getPreferredRoleCandidateIndex(party, roleName, excludedIndex)
+    local index
+    local member
+
+    for index, member in ipairs(party) do
+        if index ~= excludedIndex then
+            if roleName == ROLE_HEALER and member.assigned_role == ROLE_HEALER then
+                return index
+            end
+
+            if roleName == ROLE_TANK and member.assigned_role == ROLE_TANK then
+                return index
+            end
+        end
+    end
+
+    if roleName == ROLE_HEALER then
+        for index, member in ipairs(party) do
+            if index ~= excludedIndex and member.class == "PRIEST" and not member.is_using_shadowform then
+                return index
+            end
+        end
+
+        for index, member in ipairs(party) do
+            if index ~= excludedIndex and prefersHealing(member) then
+                return index
+            end
+        end
+    end
+
+    if roleName == ROLE_TANK then
+        for index, member in ipairs(party) do
+            if index ~= excludedIndex and member.class == "PALADIN" and member.has_righteous_fury then
+                return index
+            end
+        end
+
+        for index, member in ipairs(party) do
+            if index ~= excludedIndex and member.class == "WARRIOR" then
+                return index
+            end
+        end
+
+        for index, member in ipairs(party) do
+            if index ~= excludedIndex and prefersTanking(member) then
+                return index
+            end
+        end
+    end
+
+    return nil
+end
+
+-- Builds the raw party snapshot before group-aware role assignment is applied.
+local function buildPartySnapshot()
+    local units = getTrackedPartyUnits()
+    local party = {}
+    local unitToken
+    local _, classFilename
+    local level
+    local assignedRole
+    local shadowformName = GetSpellInfo and GetSpellInfo(SHADOWFORM_SPELL_ID) or nil
+    local righteousFuryName = GetSpellInfo and GetSpellInfo(RIGHTEOUS_FURY_SPELL_ID) or nil
+
+    for _, unitToken in ipairs(units) do
+        if UnitExists(unitToken) then
+            _, classFilename = UnitClass(unitToken)
+            level = UnitLevel(unitToken)
+            assignedRole = UnitGroupRolesAssigned and UnitGroupRolesAssigned(unitToken) or "NONE"
+
+            table.insert(party, {
+                class = classFilename or "UNKNOWN",
+                level = level or 0,
+                role = ROLE_DAMAGER,
+                assigned_role = assignedRole,
+                is_using_shadowform = shadowformName and unitHasBuff(unitToken, shadowformName) or false,
+                has_righteous_fury = righteousFuryName and unitHasBuff(unitToken, righteousFuryName) or false,
+            })
+        end
+    end
+
+    return party
+end
+
+-- Infers one healer and one tank using explicit class rules plus a few strong
+-- live buff checks. Everyone else defaults to damage.
+local function finalizePartyRoles(party)
+    local healerIndex
+    local tankIndex
+    local index
+    local member
+
+    for index, member in ipairs(party) do
+        if isPureDamageClass(member.class) then
+            member.role = ROLE_DAMAGER
+        end
+    end
+
+    healerIndex = getSingleRoleCandidateIndex(party, ROLE_HEALER)
+    if not healerIndex then
+        healerIndex = getPreferredRoleCandidateIndex(party, ROLE_HEALER)
+    end
+
+    tankIndex = getSingleRoleCandidateIndex(party, ROLE_TANK)
+    if tankIndex == healerIndex then
+        tankIndex = nil
+    end
+    if not tankIndex then
+        tankIndex = getPreferredRoleCandidateIndex(party, ROLE_TANK, healerIndex)
+    end
+
+    for index, member in ipairs(party) do
+        if index == healerIndex then
+            member.role = ROLE_HEALER
+        elseif index == tankIndex then
+            member.role = ROLE_TANK
+        else
+            member.role = ROLE_DAMAGER
+        end
+
+        member.assigned_role = nil
+        member.is_using_shadowform = nil
+        member.has_righteous_fury = nil
+    end
+
+    return party
+end
+
+-- Captures the initial per-player snapshot for the run. This is collected
+-- once, at run start, and stored with the run record.
+local function collectPartySnapshot()
+    return finalizePartyRoles(buildPartySnapshot())
+end
+
 -- Stores the active run in memory and persists the same state into the
 -- database layer so later rebuild steps can rely on one shared shape.
-local function setActiveRun(runId, dungeonName, startedAt, zoneId)
+local function setActiveRun(runId, dungeonName, startedAt, zoneId, party)
     Tracker.state.active_run = {
         run_id = runId,
         dungeon_name = dungeonName,
         started_at = startedAt,
         zone_id = zoneId,
         outside_instance_started_at = nil,
+        party = party or {},
     }
 
     persistActiveRun()
@@ -266,6 +505,7 @@ local function reactivateKnownRunByDungeon(dungeonName, zoneId)
         started_at = existingRun.started_at,
         zone_id = existingRun.zone_id or zoneId,
         outside_instance_started_at = nil,
+        party = existingRun.party or {},
     }
 
     persistActiveRun()
@@ -320,6 +560,7 @@ startFreshRun = function()
     local currentDungeon = Tracker.state.current_dungeon
     local startedAt
     local runId
+    local party
 
     if not currentDungeon or not currentDungeon.zone_id or Tracker.state.active_run then
         return false
@@ -327,8 +568,9 @@ startFreshRun = function()
 
     startedAt = time()
     runId = createRunId()
+    party = collectPartySnapshot()
 
-    setActiveRun(runId, currentDungeon.name, startedAt, currentDungeon.zone_id)
+    setActiveRun(runId, currentDungeon.name, startedAt, currentDungeon.zone_id, party)
     printMessage(string.format("run started for %s with zone id %d.", currentDungeon.name, currentDungeon.zone_id))
     return true
 end
