@@ -3,27 +3,6 @@
 DungeonOracleData = DungeonOracleData or {}
 DungeonOracleData.dungeons = DungeonOracleData.dungeons or {}
 
--- Dungeon schema:
--- {
---     id = "internal-key",
---     name = "Dungeon Name",
---     bosses = {
---         {
---             id = 123,
---             name = "Boss Name",
---             recorded_loot = {
---                 [456] = true,
---             },
---         },
---     },
--- }
---
--- Notes:
--- - id is the addon's internal dungeon identifier.
--- - name should match the player-facing dungeon name we want in exports.
--- - bosses must include every boss we want to track for this dungeon.
--- - boss.id is the NPC ID used for combat-log encounter matching.
--- - recorded_loot is a set of item IDs we explicitly care about for this boss.
 DungeonOracleData.dungeons.the_stockade = {
     id = "the_stockade",
     name = "The Stockade",
@@ -49,5 +28,12 @@ DungeonOracleData.dungeons.the_stockade = {
                 [2942] = true, -- Iron Knuckles
             },
         },
+    },
+    loot_to_bosses = {
+        [2280] = { 1666 }, -- Kam's Walking Stick -> Kam Deepfury
+
+        [3228] = { 1720 }, -- Jimmied Handcuffs -> Bruegal Ironknuckle
+        [2941] = { 1720 }, -- Prison Shank -> Bruegal Ironknuckle
+        [2942] = { 1720 }, -- Iron Knuckles -> Bruegal Ironknuckle
     },
 }

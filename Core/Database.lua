@@ -1,64 +1,33 @@
--- Database.lua defines the new SavedVariables schema for Dungeon Oracle.
---
--- This file currently implements only the minimal behavior needed for the
--- first stage of the tracking algorithm: initializing the schema and storing
--- the shared active-run start state.
+-- Database.lua stores the minimal SavedVariables used by the current tracker:
+-- settings, one active run, and completed records.
 
 DungeonOracle = DungeonOracle or {}
 DungeonOracle.Database = DungeonOracle.Database or {}
 
--- DungeonOracleDB schema:
--- {
+-- Current SavedVariables write-out shape:
+-- DungeonOracleDB = {
 --     settings = {
 --         show_minimap_button = true,
 --         show_tracker_window = true,
 --     },
---     active_run = nil,
+--     active_run = {
+--         dungeon_name = "The Stockade",
+--         run_id = "17832434-8261-4444-9894-c5a70c25cc54",
+--         zone_id = 13936,
+--         started_at = 1783243482,
+--         outside_instance_started_at = 1783243487,
+--     },
 --     records = {
 --         {
---             run_id = "550e8400-e29b-41d4-a716-446655440000",
---             dungeon_name = "The Deadmines",
---             instance_id = 36,
---             started_at = 0,
---             ended_at = 0,
---             party = {
---                 {
---                     class = "WARRIOR",
---                     level = 20,
---                     role = "TANK",
---                 },
---             },
---             deaths = {
---                 {
---                     player_name = "Player-Realm",
---                     killer_id = 644,
---                 },
---             },
---             replacements = 0,
---             hardcore = true,
---             first_death = {
---                 timestamp = 0,
---                 num_bosses_beaten = 0,
---                 class = "WARRIOR",
---             },
---             boss_timer = {
---                 {
---                     boss_id = 644,
---                     timestamp = 0,
---                 },
---             },
---             boss_loot = {
---                 [644] = 5191,
---             },
+--             dungeon_name = "The Stockade",
+--             run_id = "17832434-6632-4837-82c5-5da85f75b6a6",
+--             zone_id = 13912,
+--             started_at = 1783243466,
+--             outside_instance_started_at = 1783243471,
+--             ended_at = 1783243482,
 --         },
 --     },
 -- }
---
--- Field notes:
--- - settings: long-lived addon preferences unrelated to a specific run
--- - active_run: temporary snapshot used to preserve an in-progress run
--- - records: completed run exports waiting to be processed elsewhere
--- - instance_id: the game-provided live instance identifier for the run
 
 DungeonOracleDB = DungeonOracleDB or {
     settings = {
@@ -89,6 +58,40 @@ local function copyTable(source)
     return copy
 end
 
+-- Removes the first completed record whose run_id matches the requested value.
+-- This lets reactivation move a stored run back into active_run cleanly.
+local function removeRecordByRunId(runId)
+    local index
+    local record
+
+    if not runId or runId == "" then
+        return nil
+    end
+
+    for index = #DungeonOracleDB.records, 1, -1 do
+        record = DungeonOracleDB.records[index]
+        if record and record.run_id == runId then
+            table.remove(DungeonOracleDB.records, index)
+            return record
+        end
+    end
+
+    return nil
+end
+
+-- Rebuilds a completed record in a fixed key order so SavedVariables output is
+-- easier to scan during testing.
+local function createOrderedCompletedRun(activeRun, endedAt)
+    return {
+        dungeon_name = activeRun.dungeon_name,
+        run_id = activeRun.run_id,
+        zone_id = activeRun.zone_id,
+        started_at = activeRun.started_at,
+        outside_instance_started_at = activeRun.outside_instance_started_at,
+        ended_at = endedAt or time(),
+    }
+end
+
 -- Public: ensures the top-level SavedVariables structure exists.
 function Database.Initialize()
     DungeonOracleDB = DungeonOracleDB or {}
@@ -96,14 +99,40 @@ function Database.Initialize()
         show_minimap_button = true,
         show_tracker_window = true,
     }
-    DungeonOracleDB.active_run = DungeonOracleDB.active_run
     DungeonOracleDB.records = DungeonOracleDB.records or {}
+end
+
+-- Public: reads one stored addon setting, returning nil when it does not
+-- exist so callers can apply their own defaults.
+function Database.GetSetting(settingName)
+    Database.Initialize()
+
+    if not settingName or settingName == "" then
+        return nil
+    end
+
+    return DungeonOracleDB.settings[settingName]
+end
+
+-- Public: writes one stored addon setting.
+function Database.SetSetting(settingName, value)
+    Database.Initialize()
+
+    if not settingName or settingName == "" then
+        return
+    end
+
+    DungeonOracleDB.settings[settingName] = value
 end
 
 -- Public: stores the current shared run-start state.
 function Database.SetActiveRun(activeRun)
     Database.Initialize()
     DungeonOracleDB.active_run = activeRun
+
+    if activeRun and activeRun.run_id then
+        removeRecordByRunId(activeRun.run_id)
+    end
 end
 
 -- Public: returns the current shared run-start state, if present.
@@ -112,26 +141,35 @@ function Database.GetActiveRun()
     return DungeonOracleDB.active_run
 end
 
--- Public: returns the locally stored run whose dungeon and live instance_id
--- match the player's current dungeon context.
-function Database.FindRunByInstance(dungeonName, instanceId)
+-- Public: returns the number of completed records currently stored.
+function Database.GetRecordCount()
+    Database.Initialize()
+    return #DungeonOracleDB.records
+end
+
+-- Public: returns the locally stored run whose dungeon name matches the
+-- player's current dungeon context.
+function Database.FindRunByDungeon(dungeonName, zoneId)
+    local index
     local record
 
     Database.Initialize()
 
-    if not dungeonName or dungeonName == "" or not instanceId then
+    if not dungeonName or dungeonName == "" then
         return nil
     end
 
     if DungeonOracleDB.active_run
         and DungeonOracleDB.active_run.dungeon_name == dungeonName
-        and DungeonOracleDB.active_run.instance_id == instanceId then
+        and (not zoneId or DungeonOracleDB.active_run.zone_id == zoneId) then
         return DungeonOracleDB.active_run
     end
 
-    for _, record in ipairs(DungeonOracleDB.records) do
+    -- Scan newest-first so reactivation prefers the most recent matching run.
+    for index = #DungeonOracleDB.records, 1, -1 do
+        record = DungeonOracleDB.records[index]
         if record.dungeon_name == dungeonName
-            and record.instance_id == instanceId then
+            and (not zoneId or record.zone_id == zoneId) then
             return record
         end
     end
@@ -140,15 +178,25 @@ function Database.FindRunByInstance(dungeonName, instanceId)
 end
 
 -- Public: restores a previously known run into the active_run slot by using
--- dungeon_name and instance_id as the reactivation key.
-function Database.ReactivateRunByInstance(dungeonName, instanceId)
-    local existingRun = Database.FindRunByInstance(dungeonName, instanceId)
+-- dungeon_name as the reactivation key.
+function Database.ReactivateRunByDungeon(dungeonName, zoneId)
+    local existingRun = Database.FindRunByDungeon(dungeonName, zoneId)
+    local restoredRun
 
     if not existingRun then
         return nil
     end
 
-    DungeonOracleDB.active_run = existingRun
+    if DungeonOracleDB.active_run and DungeonOracleDB.active_run.run_id == existingRun.run_id then
+        return DungeonOracleDB.active_run
+    end
+
+    restoredRun = removeRecordByRunId(existingRun.run_id) or existingRun
+    restoredRun = copyTable(restoredRun)
+    restoredRun.ended_at = nil
+    restoredRun.outside_instance_started_at = nil
+
+    DungeonOracleDB.active_run = restoredRun
     return DungeonOracleDB.active_run
 end
 
@@ -163,8 +211,7 @@ function Database.CompleteActiveRun(endedAt)
         return nil
     end
 
-    completedRun = copyTable(DungeonOracleDB.active_run)
-    completedRun.ended_at = endedAt or time()
+    completedRun = createOrderedCompletedRun(DungeonOracleDB.active_run, endedAt)
 
     table.insert(DungeonOracleDB.records, completedRun)
     DungeonOracleDB.active_run = nil
@@ -176,4 +223,10 @@ end
 function Database.ClearActiveRun()
     Database.Initialize()
     DungeonOracleDB.active_run = nil
+end
+
+-- Public: clears all completed records while leaving settings intact.
+function Database.ClearAllRecords()
+    Database.Initialize()
+    DungeonOracleDB.records = {}
 end

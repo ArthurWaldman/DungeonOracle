@@ -3,27 +3,6 @@
 DungeonOracleData = DungeonOracleData or {}
 DungeonOracleData.dungeons = DungeonOracleData.dungeons or {}
 
--- Dungeon schema:
--- {
---     id = "internal-key",
---     name = "Dungeon Name",
---     bosses = {
---         {
---             id = 123,
---             name = "Boss Name",
---             recorded_loot = {
---                 [456] = true,
---             },
---         },
---     },
--- }
---
--- Notes:
--- - id is the addon's internal dungeon identifier.
--- - name should match the player-facing dungeon name we want in exports.
--- - bosses must include every boss we want to track for this dungeon.
--- - boss.id is the NPC ID used for combat-log encounter matching.
--- - recorded_loot is a set of item IDs we explicitly care about for this boss.
 DungeonOracleData.dungeons.uldaman = {
     id = "uldaman",
     name = "Uldaman",
@@ -115,5 +94,39 @@ DungeonOracleData.dungeons.uldaman = {
                 [9418] = true, -- Stoneslayer
             },
         },
+    },
+    loot_to_bosses = {
+        [9394] = { 6907 }, -- Horned Viking Helmet -> Eric "The Swift"
+        [9398] = { 6907 }, -- Worn Running Boots -> Eric "The Swift"
+
+        [9401] = { 6906 }, -- Nordic Longshank -> Baelog
+        [9399] = { 6906 }, -- Precision Arrow -> Baelog
+
+        [9404] = { 6908 }, -- Olaf's All Purpose Shield -> Olaf
+
+        [9389] = { 6910 }, -- Revelosh's Spaulders -> Revelosh
+        [9388] = { 6910 }, -- Revelosh's Armguards -> Revelosh
+        [9390] = { 6910 }, -- Revelosh's Gloves -> Revelosh
+        [9387] = { 6910 }, -- Revelosh's Boots -> Revelosh
+
+        [9409] = { 7228 }, -- Ironaya's Bracers -> Ironaya
+        [9407] = { 7228 }, -- Stoneweaver Leggings -> Ironaya
+        [9408] = { 7228 }, -- Ironshod Bludgeon -> Ironaya
+
+        [9410] = { 7206 }, -- Cragfists -> Ancient Stone Keeper
+        [9411] = { 7206 }, -- Rockshard Pauldrons -> Ancient Stone Keeper
+
+        [11310] = { 7291 }, -- Flameseer Mantle -> Galgann Firehammer
+        [9412] = { 7291 }, -- Galgann's Fireblaster -> Galgann Firehammer
+        [11311] = { 7291 }, -- Emberscale Cape -> Galgann Firehammer
+        [9419] = { 7291 }, -- Galgann's Firehammer -> Galgann Firehammer
+
+        [9415] = { 4854 }, -- Grimlok's Tribal Vestments -> Grimlok
+        [9416] = { 4854 }, -- Grimlok's Charge -> Grimlok
+        [9414] = { 4854 }, -- Oilskin Leggings -> Grimlok
+
+        [11118] = { 2748 }, -- Archaedic Stone -> Archaedas
+        [9413] = { 2748 }, -- The Rockpounder -> Archaedas
+        [9418] = { 2748 }, -- Stoneslayer -> Archaedas
     },
 }

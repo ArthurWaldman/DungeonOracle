@@ -3,27 +3,6 @@
 DungeonOracleData = DungeonOracleData or {}
 DungeonOracleData.dungeons = DungeonOracleData.dungeons or {}
 
--- Dungeon schema:
--- {
---     id = "internal-key",
---     name = "Dungeon Name",
---     bosses = {
---         {
---             id = 123,
---             name = "Boss Name",
---             recorded_loot = {
---                 [456] = true,
---             },
---         },
---     },
--- }
---
--- Notes:
--- - id is the addon's internal dungeon identifier.
--- - name should match the player-facing dungeon name we want in exports.
--- - bosses must include every boss we want to track for this dungeon.
--- - boss.id is the NPC ID used for combat-log encounter matching.
--- - recorded_loot is a set of item IDs we explicitly care about for this boss.
 DungeonOracleData.dungeons.wailing_caverns = {
     id = "wailing_caverns",
     name = "Wailing Caverns",
@@ -104,5 +83,36 @@ DungeonOracleData.dungeons.wailing_caverns = {
                 [6632] = true, -- Feyscale Cloak
             },
         },
+    },
+    loot_to_bosses = {
+        [6460] = { 3669 }, -- Cobrahn's Grasp -> Lord Cobrahn
+        [10410] = { 3669 }, -- Leggings of the Fang -> Lord Cobrahn
+        [6465] = { 3669 }, -- Robe of the Moccasin -> Lord Cobrahn
+
+        [10412] = { 3671 }, -- Belt of the Fang -> Lady Anacondra
+
+        [13245] = { 3653 }, -- Kresh's Back -> Kresh
+
+        [6472] = { 3670 }, -- Stinging Viper -> Lord Pythas
+        [6473] = { 3670 }, -- Armor of the Fang -> Lord Pythas
+
+        [6449] = { 3674 }, -- Glowing Lizardscale Cloak -> Skum
+        [6448] = { 3674 }, -- Tail Spike -> Skum
+
+        [6469] = { 3673 }, -- Venomstrike -> Lord Serpentis
+        [5970] = { 3673 }, -- Serpent Gloves -> Lord Serpentis
+        [10411] = { 3673 }, -- Footpads of the Fang -> Lord Serpentis
+        [6459] = { 3673 }, -- Savage Trodders -> Lord Serpentis
+
+        [6630] = { 5775 }, -- Seedcloud Buckler -> Verdan the Everliving
+        [6631] = { 5775 }, -- Living Root -> Verdan the Everliving
+        [6629] = { 5775 }, -- Sporid Cape -> Verdan the Everliving
+
+        [6461] = { 3654 }, -- Slime-encrusted Pads -> Mutanus the Devourer
+        [6627] = { 3654 }, -- Mutant Scale Breastplate -> Mutanus the Devourer
+        [6463] = { 3654 }, -- Deep Fathom Ring -> Mutanus the Devourer
+
+        [5243] = { 5912 }, -- Firebelcher -> Deviate Faerie Dragon
+        [6632] = { 5912 }, -- Feyscale Cloak -> Deviate Faerie Dragon
     },
 }

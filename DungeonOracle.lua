@@ -10,23 +10,8 @@
 -- data shape should stay in Core/Database.lua.
 
 DungeonOracle = DungeonOracle or {}
-DungeonOracle.PrintMessage = DungeonOracle.PrintMessage or nil
 
 local eventFrame = CreateFrame("Frame")
-local ADDON_PREFIX = "[Dungeon Oracle]: "
-
--- Uses the raid-warning color so addon messages are easy to spot in chat.
-local function printRaidMessage(message)
-    local chatColor = ChatTypeInfo["RAID_WARNING"]
-
-    if DEFAULT_CHAT_FRAME and chatColor then
-        DEFAULT_CHAT_FRAME:AddMessage(ADDON_PREFIX .. message, chatColor.r, chatColor.g, chatColor.b)
-    else
-        print(ADDON_PREFIX .. message)
-    end
-end
-
-DungeonOracle.PrintMessage = printRaidMessage
 
 -- Slash commands are kept thin and simply delegate to the UI module.
 local function handleSlashCommand()

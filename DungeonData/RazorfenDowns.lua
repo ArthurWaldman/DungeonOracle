@@ -3,27 +3,6 @@
 DungeonOracleData = DungeonOracleData or {}
 DungeonOracleData.dungeons = DungeonOracleData.dungeons or {}
 
--- Dungeon schema:
--- {
---     id = "internal-key",
---     name = "Dungeon Name",
---     bosses = {
---         {
---             id = 123,
---             name = "Boss Name",
---             recorded_loot = {
---                 [456] = true,
---             },
---         },
---     },
--- }
---
--- Notes:
--- - id is the addon's internal dungeon identifier.
--- - name should match the player-facing dungeon name we want in exports.
--- - bosses must include every boss we want to track for this dungeon.
--- - boss.id is the NPC ID used for combat-log encounter matching.
--- - recorded_loot is a set of item IDs we explicitly care about for this boss.
 DungeonOracleData.dungeons.razorfen_downs = {
     id = "razorfen_downs",
     name = "Razorfen Downs",
@@ -84,5 +63,30 @@ DungeonOracleData.dungeons.razorfen_downs = {
                 [10760] = true, -- Swine Fists
             },
         },
+    },
+    loot_to_bosses = {
+        [10776] = { 7355 }, -- Silky Spider Cape -> Tuten'kash
+        [10775] = { 7355 }, -- Carapace of Tuten'kash -> Tuten'kash
+        [10777] = { 7355 }, -- Arachnid Gloves -> Tuten'kash
+
+        [10769] = { 7357 }, -- Glowing Eye of Mordresh -> Mordresh Fire Eye
+        [10771] = { 7357 }, -- Deathmage Sash -> Mordresh Fire Eye
+        [10770] = { 7357 }, -- Mordresh's Lifeless Skull -> Mordresh Fire Eye
+
+        [10774] = { 8567 }, -- Fleshhide Shoulders -> Glutton
+        [10772] = { 8567 }, -- Glutton's Cleaver -> Glutton
+
+        [10768] = { 7354 }, -- Boar Champion's Belt -> Ragglesnout
+        [10767] = { 7354 }, -- Savage Boar's Guard -> Ragglesnout
+        [10758] = { 7354 }, -- X'caliboar -> Ragglesnout
+
+        [10763] = { 7358 }, -- Icemetal Barbute -> Amnennar the Coldbringer
+        [10762] = { 7358 }, -- Robes of the Lich -> Amnennar the Coldbringer
+        [10764] = { 7358 }, -- Deathchill Armor -> Amnennar the Coldbringer
+        [10761] = { 7358 }, -- Coldrage Dagger -> Amnennar the Coldbringer
+        [10765] = { 7358 }, -- Bonefingers -> Amnennar the Coldbringer
+
+        [10766] = { 7356 }, -- Plaguerot Sprig -> Plaguemaw the Rotting
+        [10760] = { 7356 }, -- Swine Fists -> Plaguemaw the Rotting
     },
 }

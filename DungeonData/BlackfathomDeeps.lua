@@ -3,27 +3,6 @@
 DungeonOracleData = DungeonOracleData or {}
 DungeonOracleData.dungeons = DungeonOracleData.dungeons or {}
 
--- Dungeon schema:
--- {
---     id = "internal-key",
---     name = "Dungeon Name",
---     bosses = {
---         {
---             id = 123,
---             name = "Boss Name",
---             recorded_loot = {
---                 [456] = true,
---             },
---         },
---     },
--- }
---
--- Notes:
--- - id is the addon's internal dungeon identifier.
--- - name should match the player-facing dungeon name we want in exports.
--- - bosses must include every boss we want to track for this dungeon.
--- - boss.id is the NPC ID used for combat-log encounter matching.
--- - recorded_loot is a set of item IDs we explicitly care about for this boss.
 DungeonOracleData.dungeons.blackfathom_deeps = {
     id = "blackfathom_deeps",
     name = "Blackfathom Deeps",
@@ -80,5 +59,27 @@ DungeonOracleData.dungeons.blackfathom_deeps = {
                 [6909] = true, -- Strike of the Hydra
             },
         },
+    },
+    loot_to_bosses = {
+        [6907] = { 4887 }, -- Tortoise Armor -> Ghamoo-ra
+        [6908] = { 4887 }, -- Ghamoo-ra's Bind -> Ghamoo-ra
+
+        [888] = { 4831 }, -- Naga Battle Gloves -> Lady Sarevess
+        [3078] = { 4831 }, -- Naga Heartpiercer -> Lady Sarevess
+        [11121] = { 4831 }, -- Darkwater Talwar -> Lady Sarevess
+
+        [6906] = { 6243 }, -- Algae Fists -> Gelihast
+        [6905] = { 6243 }, -- Reef Axe -> Gelihast
+
+        [1155] = { 4832 }, -- Rod of the Sleepwalker -> Twilight Lord Kelris
+        [6903] = { 4832 }, -- Gaze Dreamer Pants -> Twilight Lord Kelris
+
+        [6901] = { 4830 }, -- Glowing Thresher Cape -> Old Serra'kis
+        [6904] = { 4830 }, -- Bite of Serra'kis -> Old Serra'kis
+        [6902] = { 4830 }, -- Bands of Serra'kis -> Old Serra'kis
+
+        [6911] = { 4829 }, -- Moss Cinch -> Aku'mai
+        [6910] = { 4829 }, -- Leech Pants -> Aku'mai
+        [6909] = { 4829 }, -- Strike of the Hydra -> Aku'mai
     },
 }

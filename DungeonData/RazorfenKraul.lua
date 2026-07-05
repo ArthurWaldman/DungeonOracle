@@ -3,27 +3,6 @@
 DungeonOracleData = DungeonOracleData or {}
 DungeonOracleData.dungeons = DungeonOracleData.dungeons or {}
 
--- Dungeon schema:
--- {
---     id = "internal-key",
---     name = "Dungeon Name",
---     bosses = {
---         {
---             id = 123,
---             name = "Boss Name",
---             recorded_loot = {
---                 [456] = true,
---             },
---         },
---     },
--- }
---
--- Notes:
--- - id is the addon's internal dungeon identifier.
--- - name should match the player-facing dungeon name we want in exports.
--- - bosses must include every boss we want to track for this dungeon.
--- - boss.id is the NPC ID used for combat-log encounter matching.
--- - recorded_loot is a set of item IDs we explicitly care about for this boss.
 DungeonOracleData.dungeons.razorfen_kraul = {
     id = "razorfen_kraul",
     name = "Razorfen Kraul",
@@ -95,5 +74,29 @@ DungeonOracleData.dungeons.razorfen_kraul = {
                 [6688] = true, -- Whisperwind Headdress
             },
         },
+    },
+    loot_to_bosses = {
+        [2816] = { 4428 }, -- Death Speaker Scepter -> Death Speaker Jargba
+        [6685] = { 4428 }, -- Death Speaker Mantle -> Death Speaker Jargba
+        [6682] = { 4428 }, -- Death Speaker Robes -> Death Speaker Jargba
+
+        [6687] = { 4420 }, -- Corpsemaker -> Overlord Ramtusk
+        [6686] = { 4420 }, -- Tusken Helm -> Overlord Ramtusk
+
+        [6679] = { 4438 }, -- Armor Piercer -> Razorfen Spearhide
+
+        [6691] = { 4422 }, -- Swinetusk Shank -> Agathelos the Raging
+        [6690] = { 4422 }, -- Ferine Leggings -> Agathelos the Raging
+
+        [6695] = { 4425 }, -- Stygian Bone Amulet -> Blind Hunter
+        [6697] = { 4425 }, -- Batwing Mantle -> Blind Hunter
+        [6696] = { 4425 }, -- Nightstalker Bow -> Blind Hunter
+
+        [6693] = { 4421 }, -- Agamaggan's Clutch -> Charlga Razorflank
+        [6694] = { 4421 }, -- Heart of Agamaggan -> Charlga Razorflank
+        [6692] = { 4421 }, -- Pronged Reaver -> Charlga Razorflank
+
+        [6689] = { 4842 }, -- Wind Spirit Staff -> Earthcaller Halmgar
+        [6688] = { 4842 }, -- Whisperwind Headdress -> Earthcaller Halmgar
     },
 }

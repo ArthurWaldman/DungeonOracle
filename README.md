@@ -1,116 +1,102 @@
 # DungeonOracle
 
-DungeonOracle is a World of Warcraft Classic Era addon focused on collecting structured dungeon-run data for later analysis.
+DungeonOracle is a World of Warcraft Classic Era addon for collecting structured dungeon run data for later offline analysis.
 
-The long-term goal of the project is to build a broader dungeon analytics dataset that can answer questions about group composition, deaths, run pacing, replacements, Hardcore-specific risk, and other run-level behavior.
+The addon currently focuses on a tight local-only flow:
+- detect when the player enters a supported dungeon
+- resolve a Nova-style `zone_id` from in-instance GUIDs
+- start or reactivate a run only after that `zone_id` is known
+- persist one active run and archive completed runs
+- show live run state in a compact in-dungeon tracker window
 
-This repository is currently in an active rebuild phase. Earlier tracking and persistence logic has been preserved in reference files, while the live tracker and database modules are being rebuilt from a cleaner foundation.
+## Current Scope
 
-## Project Goal
+This branch is intentionally narrow.
 
-DungeonOracle is meant to run quietly in the background while a player is inside a dungeon and collect data that can later be exported and analyzed outside the game.
+What it does now:
+- tracks supported dungeon entry
+- resolves `zone_id`
+- starts a new run when a valid dungeon + `zone_id` context is established
+- reactivates a stored run when `dungeon_name` and `zone_id` match
+- ends a run when the player remains outside the dungeon for 30 seconds
+- ends the current run and starts a new one when the player enters the same dungeon with a different `zone_id`
+- stores completed runs in SavedVariables
 
-The addon is being designed around a few core principles:
-
-- Dungeon data should be structured enough to support later analytics
-- Tracking should be modular so dungeon definitions, runtime tracking, persistence, and UI can evolve independently.
-- The in-game addon should stay lightweight and understandable.
-- Manual upload is acceptable if it keeps the addon simple and robust.
-- The recorded schema should support Hardcore analysis in addition to standard loot analysis.
-
-## Current Status
-
-The project currently contains four major areas of work:
-
-- `Data/`
-  Static dungeon metadata files, including tracked bosses and tracked loot.
-
-- `Core/UI.lua`
-  The in-game UI, including the minimap button, main window, upload instructions tab, and tracker window.
-
-- `Core/Tracker.lua`
-  A fresh tracker skeleton that is intentionally not implemented yet.
-
-- `Core/Database.lua`
-  The new database schema definition, without full runtime persistence logic yet.
-
-The project also contains reference files that preserve prior logic:
-
-- `Core/TrackerReference.lua`
-- `Core/DatabaseReference.lua`
-
-These reference files are read-only historical context for the rebuild and are not meant to be edited further.
-
-## Rebuild Direction
-
-The current rebuild is centered around making the addon support richer analytics than the original loot-only approach.
-
-The new direction includes tracking data such as:
-
-- unique run identity
-- dungeon name
-- run start and end times
-- party composition
-- deaths and killers
-- replacements during the run
-- Hardcore vs non-Hardcore context
-- the first death event
-- per-boss timing
-- boss loot outcomes
-
-The current live codebase is being rebuilt incrementally. Only the exact requested behavior should be added as the algorithm is specified.
+What it does not do now:
+- addon-to-addon sharing
+- party analytics
+- death analytics
+- loot analytics
+- boss timing
+- upload automation
 
 ## Repository Layout
 
 ```text
 DungeonOracle/
 +- Core/
-�  +- Database.lua
-�  +- DatabaseReference.lua
-�  +- Tracker.lua
-�  +- TrackerReference.lua
-�  +- UI.lua
-+- Data/
-�  +- dungeon definition files
+|  +- Database.lua
+|  +- DatabaseReference.lua
+|  +- Tracker.lua
+|  +- TrackerReference.lua
+|  +- UI.lua
++- DungeonData/
+|  +- schema.md
+|  +- dungeon definition files
 +- DungeonOracle.lua
 +- DungeonOracle.toc
 +- README.md
 +- .gitignore
 ```
 
-## Bootstrap
+## Core Modules
 
-`DungeonOracle.lua` is the addon bootstrap.
+### `DungeonOracle.lua`
 
-Its responsibilities are intentionally narrow:
+Addon bootstrap.
 
+Responsibilities:
 - create the shared addon namespace
 - register the slash command
-- expose the shared chat-print helper
-- initialize the UI and tracker on login
-- forward non-login events to the tracker module
+- initialize UI and tracker on login
+- forward runtime events to the tracker
 
-The bootstrap should remain thin. Dungeon behavior belongs in the tracker module, and saved-variable shape belongs in the database module.
+### `Core/Tracker.lua`
 
-## UI
+Runtime dungeon tracking.
 
-The UI module is responsible for presentation only.
+Current responsibilities:
+- identify supported dungeon contexts
+- resolve `zone_id` from valid GUID sources
+- create new runs
+- reactivate matching stored runs
+- detect same-dungeon new-instance transitions
+- manage the outside-instance timeout
+- send lifecycle updates to the dungeon UI log
 
-Current UI pieces include:
+### `Core/Database.lua`
 
-- a minimap launcher button
-- a central main window
-- a `Settings` tab
-- an `Upload Instructions` tab
-- a compact in-dungeon tracker window
+SavedVariables storage for the live branch.
 
-The UI reads settings through the database module, but it should not own dungeon-tracking logic.
+Current responsibilities:
+- initialize the database
+- store settings
+- persist one `active_run`
+- archive completed runs into `records`
+- reactivate a stored run by `dungeon_name` and `zone_id`
 
-## Database Schema
+### `Core/UI.lua`
 
-The current database schema is designed to support analytics-first recording.
+Presentation layer only.
 
-Top-level structure:
+Current UI pieces:
+- minimap launcher button
+- main addon window
+- settings tab
+- upload instructions tab
+- in-dungeon tracker window
+
+## Current SavedVariables Shape
 
 ```lua
 DungeonOracleDB = {
@@ -118,163 +104,150 @@ DungeonOracleDB = {
         show_minimap_button = true,
         show_tracker_window = true,
     },
-    active_run = nil,
+    active_run = {
+        dungeon_name = "The Stockade",
+        run_id = "17832434-8261-4444-9894-c5a70c25cc54",
+        zone_id = 13936,
+        started_at = 1783243482,
+        outside_instance_started_at = 1783243487,
+    },
     records = {
         {
-            run_id = "uuid",
-            dungeon_name = "The Deadmines",
-            instance_id = 36,
-            started_at = 0,
-            ended_at = 0,
-            party = {
-                {
-                    class = "WARRIOR",
-                    level = 20,
-                    role = "TANK",
-                },
-            },
-            deaths = {
-                {
-                    player_name = "Player-Realm",
-                    killer_id = 644,
-                },
-            },
-            replacements = 0,
-            hardcore = true,
-            first_death = {
-                timestamp = 0,
-                num_bosses_beaten = 0,
-                class = "WARRIOR",
-            },
-            boss_timer = {
-                {
-                    boss_id = 644,
-                    timestamp = 0,
-                },
-            },
-            boss_loot = {
-                [644] = 5191,
-            },
+            dungeon_name = "The Stockade",
+            run_id = "17832434-6632-4837-82c5-5da85f75b6a6",
+            zone_id = 13912,
+            started_at = 1783243466,
+            outside_instance_started_at = 1783243471,
+            ended_at = 1783243482,
         },
     },
 }
 ```
 
-### Schema Notes
+### Field Notes
 
 - `settings`
   Persistent addon preferences.
 
 - `active_run`
-  Temporary in-progress state used to avoid losing a run when the addon should preserve it.
+  The currently live dungeon run, if one exists.
 
 - `records`
-  Completed run snapshots intended for later export and offline processing.
-
-- `run_id`
-  A unique UUID for the run.
+  Archived completed runs.
 
 - `dungeon_name`
-  The user-facing dungeon identifier.
+  The player-facing dungeon name.
 
-- `instance_id`
-  The game-provided live instance identifier captured for the run.
+- `run_id`
+  A UUID-like identifier used to distinguish runs in local storage.
 
-- `started_at` and `ended_at`
-  Timestamps reserved for later time-based analysis.
+- `zone_id`
+  A Nova-style in-instance identifier derived from valid dungeon GUIDs. This is the key signal used to distinguish one run from another within the same dungeon.
 
-- `party`
-  A structured snapshot of the group composition.
+- `started_at`
+  The Unix timestamp when the run began.
 
-- `deaths`
-  A list of player death events and the recorded killer ID.
+- `outside_instance_started_at`
+  The Unix timestamp when the player left the dungeon while the run was still active.
 
-- `replacements`
-  The number of replacement players needed during the run.
+- `ended_at`
+  The Unix timestamp when the run was archived as complete.
 
-- `hardcore`
-  Whether the run occurred on a Hardcore realm.
+## Dungeon Data
 
-- `first_death`
-  The first death event worth highlighting for later analysis.
+The `DungeonData/` directory contains static metadata for supported dungeons.
 
-- `boss_timer`
-  A per-boss timing log.
+Each dungeon file defines:
+- the internal dungeon key
+- the display name
+- optional map matching data
+- aliases when needed
+- tracked bosses
+- tracked loot per boss
+- reverse loot lookup via `loot_to_bosses`
 
-- `boss_loot`
-  The boss-to-loot mapping collected during the run.
+The shared schema for all dungeon definition files now lives in:
 
-## Dungeon Data Files
+- [DungeonData/schema.md](C:/Users/Arthur/Software%20Dev/Personal%20Projects/DungeonOracle/DungeonData/schema.md)
 
-The `Data/` directory contains static dungeon definitions.
+That file is the single source of truth for dungeon file structure.
 
-These files serve as metadata sources for the tracker and are intended to answer questions such as:
+## Current Run Flow
 
-- which dungeon is being tracked
-- which bosses are relevant
-- which loot items are valid tracked outcomes for each boss
+The live branch currently follows this simplified local flow:
 
-At this stage, the data files are considered complete except for future naming-convention fixes if matching issues are discovered.
+1. The player enters a supported dungeon.
+2. The tracker waits until it can resolve a valid `zone_id`.
+3. Once `zone_id` is known, the tracker decides whether to:
+   - continue the current active run
+   - reactivate a stored run whose `dungeon_name` and `zone_id` match
+   - start a fresh run
+4. If the player leaves the dungeon, a 30-second outside timer begins.
+5. If the player returns before that timer expires, the run continues.
+6. If the timer expires, the run is archived into `records`.
+7. If the player enters the same dungeon with a different `zone_id`, the old run is completed and a new run begins.
+
+## Tracker Window
+
+The in-dungeon tracker window currently shows:
+- reset timer
+- run ID
+- zone ID
+- lifecycle log messages
+
+This window is meant to support testing and make run-state transitions visible without printing to chat.
 
 ## Upload Model
 
-DungeonOracle is built around manual export rather than automated remote submission.
+DungeonOracle uses manual export.
 
-The expected flow is:
-
+Expected flow:
 1. The addon records data locally in SavedVariables.
 2. The player uploads the SavedVariables file manually.
-3. The uploaded data is processed outside the game.
-4. Analytics and deduplication happen in external systems, not in the addon.
+3. Data processing happens outside the game.
 
-This keeps the in-game addon simpler and avoids trying to force network-like workflows into the WoW addon environment.
-
-## Development Rules For This Repo
-
-A few important repository rules currently define how development should proceed:
-
-- The reference files are read-only and exist only for reference.
-- The `Data/` files should not be modified except for naming-convention fixes if matching problems are found later.
-- New functionality should only be added when explicitly requested.
-- Extra convenience behavior should not be introduced unless requested.
-- The tracker and database are in a rebuild phase and should stay simple until the algorithm is fully specified.
-
-## Likely Next Steps
-
-The project is positioned for the next phase of work, which will likely include:
-
-- implementing the new tracker algorithm step by step
-- defining how `active_run` should be persisted and restored
-- deciding exactly how party composition snapshots are captured
-- deciding when death events are recorded and how they are normalized
-- implementing run completion rules
-- wiring the tracker to the new schema
-- surfacing tracked state in the in-dungeon UI
-
-## Local Usage
-
-The addon is intended to be installed as a normal WoW addon inside the Classic Era addon directory.
-
-The exported data file will live under the account SavedVariables folder, for example:
+SavedVariables path:
 
 ```text
 World of Warcraft\_classic_era_\WTF\Account\<YOUR_ACCOUNT>\SavedVariables
 ```
 
-The relevant file for upload is:
+Relevant file:
 
 ```text
 DungeonOracle.lua
 ```
 
-## Notes
+## Reference Files
 
-This repository is not trying to be a general-purpose addon framework. It is a focused data-collection tool for dungeon analytics.
+The reference files are preserved for historical context only:
+- `Core/TrackerReference.lua`
+- `Core/DatabaseReference.lua`
 
-That focus matters because it drives the design:
+They are not part of the live tracking flow and should be treated as read-only reference material.
 
-- simple UI
-- structured records
-- modular runtime pieces
-- offline analytics
-- explicit tracking logic rather than broad automation
+## Development Notes
+
+Important current repo rules:
+- keep the live tracker logic simple and explicit
+- do not add unrequested functionality
+- treat the reference files as read-only
+- use `DungeonData/schema.md` as the shared schema reference for dungeon files
+
+## Installation
+
+Install the addon like a normal WoW Classic Era addon inside:
+
+```text
+World of Warcraft\_classic_era_\Interface\AddOns\DungeonOracle
+```
+
+## Status
+
+The current branch is stable around:
+- local run tracking
+- `zone_id`-based continuation and reactivation
+- 30-second outside-instance completion
+- compact dungeon UI visibility
+
+Future analytics fields can be layered back in from here once they are reintroduced deliberately.

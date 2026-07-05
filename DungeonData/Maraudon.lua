@@ -97,4 +97,48 @@ DungeonOracleData.dungeons.maraudon = {
             },
         },
     },
+    loot_to_bosses = {
+        [17746] = { 13282 }, -- Noxxion's Shackles -> Noxxion
+        [17744] = { 13282 }, -- Heart of Noxxion -> Noxxion
+        [17745] = { 13282 }, -- Noxious Shooter -> Noxxion
+
+        [17749] = { 12258 }, -- Phytoskin Spaulders -> Razorlash
+        [17748] = { 12258 }, -- Vinerot Sandals -> Razorlash
+        [17750] = { 12258 }, -- Chloromesh Girdle -> Razorlash
+        [17751] = { 12258 }, -- Brusslehide Leggings -> Razorlash
+
+        [17755] = { 12236 }, -- Satyrmane Sash -> Lord Vyletongue
+        [17754] = { 12236 }, -- Infernal Trickster Leggings -> Lord Vyletongue
+        [17752] = { 12236 }, -- Satyr's Lash -> Lord Vyletongue
+
+        [17767] = { 12237 }, -- Bloomsprout Headpiece -> Meshlok the Harvester
+        [17741] = { 12237 }, -- Nature's Embrace -> Meshlok the Harvester
+        [17742] = { 12237 }, -- Fungus Shroud Armor -> Meshlok the Harvester
+
+        [17740] = { 12225 }, -- Soothsayer's Headdress -> Celebras the Cursed
+        [17739] = { 12225 }, -- Grovekeeper's Drape -> Celebras the Cursed
+        [17738] = { 12225 }, -- Claw of Celebras -> Celebras the Cursed
+
+        [17734] = { 12203 }, -- Helm of the Mountain -> Landslide
+        [17736] = { 12203 }, -- Rockgrip Gauntlets -> Landslide
+        [17737] = { 12203 }, -- Cloud Stone -> Landslide
+        [17943] = { 12203 }, -- Fist of Stone -> Landslide
+
+        [17718] = { 13601 }, -- Gizlock's Hypertech Buckler -> Tinkerer Gizlock
+        [17717] = { 13601 }, -- Megashot Rifle -> Tinkerer Gizlock
+        [17719] = { 13601 }, -- Inventor's Focal Sword -> Tinkerer Gizlock
+
+        [17732] = { 13596 }, -- Rotgrip Mantle -> Rotgrip
+        [17728] = { 13596 }, -- Albino Crocscale Boots -> Rotgrip
+        [17730] = { 13596 }, -- Gatorbite Axe -> Rotgrip
+
+        [17780] = { 12201 }, -- Blade of Eternal Darkness -> Princess Theradras
+        [17715] = { 12201 }, -- Eye of Theradras -> Princess Theradras
+        [17707] = { 12201 }, -- Gemshard Heart -> Princess Theradras
+        [17714] = { 12201 }, -- Bracers of the Stone Princess -> Princess Theradras
+        [17711] = { 12201 }, -- Elemental Rockridge Leggings -> Princess Theradras
+        [17713] = { 12201 }, -- Blackstone Ring -> Princess Theradras
+        [17710] = { 12201 }, -- Charstone Dirk -> Princess Theradras
+        [17766] = { 12201 }, -- Princess Theradras' Scepter -> Princess Theradras
+    },
 }

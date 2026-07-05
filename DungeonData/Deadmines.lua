@@ -3,29 +3,6 @@
 DungeonOracleData = DungeonOracleData or {}
 DungeonOracleData.dungeons = DungeonOracleData.dungeons or {}
 
--- Dungeon schema:
--- {
---     id = "internal-key",
---     name = "Dungeon Name",
---     bosses = {
---         {
---             id = 123,
---             name = "Boss Name",
---             recorded_loot = {
---                 [456] = true,
---             },
---         },
---     },
--- }
---
--- Notes:
--- - id is the addon's internal dungeon identifier.
--- - name should match the player-facing dungeon name we want in exports.
--- - bosses must include every boss required for a run to be considered valid.
--- - boss.id is the NPC ID used for encounter matching.
--- - recorded_loot is a set of item IDs we explicitly care about for this boss.
--- - using a set keeps loot validation fast and makes it obvious that we do not
---   intend to track every possible drop from every encounter.
 DungeonOracleData.dungeons.deadmines = {
     id = "deadmines",
     name = "The Deadmines",
@@ -106,5 +83,35 @@ DungeonOracleData.dungeons.deadmines = {
                 [5197] = true, -- Cookie's Tenderizer
             },
         },
+    },
+    loot_to_bosses = {
+        [872] = { 644 }, -- Rockslicer -> Rhahk'Zor
+
+        [5443] = { 3586 }, -- Gold-plated Buckler -> Miner Johnson
+        [5444] = { 3586 }, -- Miner's Cape -> Miner Johnson
+
+        [5194] = { 643 }, -- Taskmaster Axe -> Sneed
+        [5195] = { 643 }, -- Gold-flecked Gloves -> Sneed
+
+        [1937] = { 642 }, -- Buzz Saw -> Sneed's Shredder
+
+        [1156] = { 1763 }, -- Lavishly Jeweled Ring -> Gilnid
+        [5199] = { 1763 }, -- Smelting Pants -> Gilnid
+
+        [7230] = { 646 }, -- Smite's Mighty Hammer -> Mr. Smite
+        [5192] = { 646 }, -- Thief's Blade -> Mr. Smite
+        [5196] = { 646 }, -- Smite's Reaver -> Mr. Smite
+
+        [5201] = { 647 }, -- Emberstone Staff -> Captain Greenskin
+        [10403] = { 647 }, -- Blackened Defias Belt -> Captain Greenskin
+        [5200] = { 647 }, -- Impaling Harpoon -> Captain Greenskin
+
+        [5193] = { 639 }, -- Cape of the Brotherhood -> Edwin VanCleef
+        [5202] = { 639 }, -- Corsair's Overshirt -> Edwin VanCleef
+        [10399] = { 639 }, -- Blackened Defias Armor -> Edwin VanCleef
+        [5191] = { 639 }, -- Cruel Barb -> Edwin VanCleef
+
+        [5198] = { 645 }, -- Cookie's Stirring Rod -> Cookie
+        [5197] = { 645 }, -- Cookie's Tenderizer -> Cookie
     },
 }

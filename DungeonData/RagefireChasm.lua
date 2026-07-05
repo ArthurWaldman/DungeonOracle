@@ -3,27 +3,6 @@
 DungeonOracleData = DungeonOracleData or {}
 DungeonOracleData.dungeons = DungeonOracleData.dungeons or {}
 
--- Dungeon schema:
--- {
---     id = "internal-key",
---     name = "Dungeon Name",
---     bosses = {
---         {
---             id = 123,
---             name = "Boss Name",
---             recorded_loot = {
---                 [456] = true,
---             },
---         },
---     },
--- }
---
--- Notes:
--- - id is the addon's internal dungeon identifier.
--- - name should match the player-facing dungeon name we want in exports.
--- - bosses must include every boss we want to track for this dungeon.
--- - boss.id is the NPC ID used for combat-log encounter matching.
--- - recorded_loot is a set of item IDs we explicitly care about for this boss.
 DungeonOracleData.dungeons.ragefire_chasm = {
     id = "ragefire_chasm",
     name = "Ragefire Chasm",
@@ -47,5 +26,14 @@ DungeonOracleData.dungeons.ragefire_chasm = {
                 [14151] = true, -- Chanting Blade
             },
         },
+    },
+    loot_to_bosses = {
+        [14149] = { 11520 }, -- Subterranean Cape -> Taragaman the Hungerer
+        [14148] = { 11520 }, -- Crystalline Cuffs -> Taragaman the Hungerer
+        [14145] = { 11520 }, -- Cursed Felblade -> Taragaman the Hungerer
+
+        [14150] = { 11518 }, -- Robe of Evocation -> Jergosh the Invoker
+        [14147] = { 11518 }, -- Cavedweller Bracers -> Jergosh the Invoker
+        [14151] = { 11518 }, -- Chanting Blade -> Jergosh the Invoker
     },
 }

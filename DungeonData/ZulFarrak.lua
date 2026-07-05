@@ -3,27 +3,6 @@
 DungeonOracleData = DungeonOracleData or {}
 DungeonOracleData.dungeons = DungeonOracleData.dungeons or {}
 
--- Dungeon schema:
--- {
---     id = "internal-key",
---     name = "Dungeon Name",
---     bosses = {
---         {
---             id = 123,
---             name = "Boss Name",
---             recorded_loot = {
---                 [456] = true,
---             },
---         },
---     },
--- }
---
--- Notes:
--- - id is the addon's internal dungeon identifier.
--- - name should match the player-facing dungeon name we want in exports.
--- - bosses must include every boss we want to track for this dungeon.
--- - boss.id is the NPC ID used for combat-log encounter matching.
--- - recorded_loot is a set of item IDs we explicitly care about for this boss.
 DungeonOracleData.dungeons.zul_farrak = {
     id = "zul_farrak",
     name = "Zul'Farrak",
@@ -105,5 +84,32 @@ DungeonOracleData.dungeons.zul_farrak = {
                 [12470] = true, -- Sandstalker Ankleguards
             },
         },
+    },
+    loot_to_bosses = {
+        [9640] = { 8127 }, -- Vice Grips -> Antu'sul
+        [9641] = { 8127 }, -- Lifeblood Amulet -> Antu'sul
+        [9639] = { 8127 }, -- The Hand of Antu'sul -> Antu'sul
+        [9379] = { 8127 }, -- Sang'thraze the Deflector -> Antu'sul
+
+        [18083] = { 7271 }, -- Jumanza Grips -> Witch Doctor Zum'rah
+        [18082] = { 7271 }, -- Zum'rah's Vexing Cane -> Witch Doctor Zum'rah
+
+        [9470] = { 7275 }, -- Bad Mojo Mask -> Shadowpriest Sezz'ziz
+        [9473] = { 7275 }, -- Jinxed Hoodoo Skin -> Shadowpriest Sezz'ziz
+        [9474] = { 7275 }, -- Jinxed Hoodoo Kilt -> Shadowpriest Sezz'ziz
+        [9475] = { 7275 }, -- Diabolic Skiver -> Shadowpriest Sezz'ziz
+
+        [12471] = { 10081 }, -- Desertwalker Cane -> Dustwraith
+
+        [9469] = { 7273 }, -- Gahz'rilla Scale Armor -> Gahz'rilla
+        [9467] = { 7273 }, -- Gahz'rilla Fang -> Gahz'rilla
+
+        [9479] = { 7267 }, -- Embrace of the Lycan -> Chief Ukorz Sandscalp
+        [9476] = { 7267 }, -- Big Bad Pauldrons -> Chief Ukorz Sandscalp
+        [9478] = { 7267 }, -- Ripsaw -> Chief Ukorz Sandscalp
+        [9477] = { 7267 }, -- The Chief's Enforcer -> Chief Ukorz Sandscalp
+        [11086] = { 7267 }, -- Jang'thraze the Protector -> Chief Ukorz Sandscalp
+
+        [12470] = { 10082 }, -- Sandstalker Ankleguards -> Zerillis
     },
 }

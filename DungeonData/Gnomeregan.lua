@@ -3,27 +3,6 @@
 DungeonOracleData = DungeonOracleData or {}
 DungeonOracleData.dungeons = DungeonOracleData.dungeons or {}
 
--- Dungeon schema:
--- {
---     id = "internal-key",
---     name = "Dungeon Name",
---     bosses = {
---         {
---             id = 123,
---             name = "Boss Name",
---             recorded_loot = {
---                 [456] = true,
---             },
---         },
---     },
--- }
---
--- Notes:
--- - id is the addon's internal dungeon identifier.
--- - name should match the player-facing dungeon name we want in exports.
--- - bosses must include every boss we want to track for this dungeon.
--- - boss.id is the NPC ID used for combat-log encounter matching.
--- - recorded_loot is a set of item IDs we explicitly care about for this boss.
 DungeonOracleData.dungeons.gnomeregan = {
     id = "gnomeregan",
     name = "Gnomeregan",
@@ -94,5 +73,33 @@ DungeonOracleData.dungeons.gnomeregan = {
                 [11828] = true, -- Schematic: Pet Bombling
             },
         },
+    },
+    loot_to_bosses = {
+        [9445] = { 7361 }, -- Grubbis Paws -> Grubbis
+
+        [9454] = { 7079 }, -- Acidic Walkers -> Viscous Fallout
+        [9453] = { 7079 }, -- Toxic Revenger -> Viscous Fallout
+        [9452] = { 7079 }, -- Hydrocane -> Viscous Fallout
+
+        [9447] = { 6235 }, -- Electrocutioner Lagnut -> Electrocutioner 6000
+        [9446] = { 6235 }, -- Electrocutioner Leg -> Electrocutioner 6000
+        [9448] = { 6235 }, -- Spidertank Oilrag -> Electrocutioner 6000
+
+        [9449] = { 6229 }, -- Manual Crowd Pummeler -> Crowd Pummeler 9-60
+        [9450] = { 6229 }, -- Gnomebot Operating Boots -> Crowd Pummeler 9-60
+
+        [9455] = { 6228 }, -- Emissary Cuffs -> Dark Iron Ambassador
+        [9456] = { 6228 }, -- Glass Shooter -> Dark Iron Ambassador
+        [9457] = { 6228 }, -- Royal Diplomatic Scepter -> Dark Iron Ambassador
+
+        [9492] = { 7800 }, -- Electromagnetic Gigaflux Reactivator -> Mekgineer Thermaplugg
+        [9461] = { 7800 }, -- Charged Gear -> Mekgineer Thermaplugg
+        [9458] = { 7800 }, -- Thermaplugg's Central Core -> Mekgineer Thermaplugg
+        [9459] = { 7800 }, -- Thermaplugg's Left Arm -> Mekgineer Thermaplugg
+        [4415] = { 7800 }, -- Schematic: Craftsman's Monocle -> Mekgineer Thermaplugg
+        [4413] = { 7800 }, -- Schematic: Discombobulator Ray -> Mekgineer Thermaplugg
+        [4411] = { 7800 }, -- Schematic: Flame Deflector -> Mekgineer Thermaplugg
+        [7742] = { 7800 }, -- Schematic: Gnomish Cloaking Device -> Mekgineer Thermaplugg
+        [11828] = { 7800 }, -- Schematic: Pet Bombling -> Mekgineer Thermaplugg
     },
 }

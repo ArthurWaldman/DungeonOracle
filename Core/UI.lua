@@ -22,8 +22,8 @@ local MINIMAP_RADIUS = 80
 local MINIMAP_ICON = "Interface\\Icons\\INV_Misc_Note_01"
 local UPLOAD_URL = "https://www.dropbox.com/request/2okeud4m0vplo6e8nsmk"
 local PATH_FONT_SIZE = 9
-local TRACKER_WINDOW_WIDTH = 250
-local TRACKER_WINDOW_HEIGHT = 110
+local TRACKER_WINDOW_WIDTH = 360
+local TRACKER_WINDOW_HEIGHT = 160
 local TRACKER_LOG_LINE_LIMIT = 8
 
 -- Tab definitions drive both the clickable tab buttons and the associated
@@ -89,8 +89,6 @@ local function createTitle(frame, text)
     local title = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
     title:SetPoint("TOP", 0, -7)
     title:SetText(text)
-
-    return title
 end
 
 -- Creates one content pane per tab. Panes are stacked in the same area and
@@ -212,14 +210,10 @@ local function populateUploadInstructionsPane(pane)
         if DungeonOracle.Database and DungeonOracle.Database.ClearAllRecords then
             DungeonOracle.Database.ClearAllRecords()
 
-            if DungeonOracle.Tracker and DungeonOracle.Tracker.DiscardActiveRun then
-                DungeonOracle.Tracker.DiscardActiveRun()
-            end
-
             UI.RefreshUploadInstructionsPane()
 
-            if DEFAULT_CHAT_FRAME then
-                DEFAULT_CHAT_FRAME:AddMessage("[Dungeon Oracle]: local dungeon run data cleared. Reloading UI to save the updated file.")
+            if UI.AppendTrackerLog then
+                UI.AppendTrackerLog("local dungeon run data cleared. Reloading UI to save the updated file.")
             end
 
             ReloadUI()
@@ -253,8 +247,20 @@ local function createTrackerWindow()
     title:SetPoint("TOPLEFT", 10, -8)
     title:SetText("Dungeon Oracle Tracker")
 
+    local timerText = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    timerText:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -8)
+    timerText:SetText("Reset Timer: Inactive")
+
+    local runIdText = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    runIdText:SetPoint("TOPLEFT", timerText, "BOTTOMLEFT", 0, -6)
+    runIdText:SetText("Run ID: Inactive")
+
+    local zoneIdText = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    zoneIdText:SetPoint("TOPLEFT", runIdText, "BOTTOMLEFT", 0, -6)
+    zoneIdText:SetText("Zone ID: Inactive")
+
     local logText = frame:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-    logText:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -10)
+    logText:SetPoint("TOPLEFT", zoneIdText, "BOTTOMLEFT", 0, -8)
     logText:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -10, 10)
     logText:SetJustifyH("LEFT")
     logText:SetJustifyV("TOP")
@@ -264,9 +270,63 @@ local function createTrackerWindow()
     positionTrackerWindow(frame)
 
     UI.trackerFrame = frame
-    UI.trackerTitleText = title
+    UI.trackerTimerText = timerText
+    UI.trackerRunIdText = runIdText
+    UI.trackerZoneIdText = zoneIdText
     UI.trackerLogText = logText
     UI.trackerLogLines = { "No loot detected" }
+
+    frame:SetScript("OnUpdate", function(self, elapsed)
+        local activeRun
+        local currentDungeon
+        local remainingSeconds
+        local zoneId
+
+        self.elapsedSinceTimerRefresh = (self.elapsedSinceTimerRefresh or 0) + elapsed
+        if self.elapsedSinceTimerRefresh < 0.25 then
+            return
+        end
+
+        self.elapsedSinceTimerRefresh = 0
+        remainingSeconds = DungeonOracle
+            and DungeonOracle.Tracker
+            and DungeonOracle.Tracker.GetOutsideTimeoutRemainingSeconds
+            and DungeonOracle.Tracker.GetOutsideTimeoutRemainingSeconds()
+
+        if UI.trackerTimerText then
+            if remainingSeconds ~= nil then
+                UI.trackerTimerText:SetText(string.format("Reset Timer: %ds", remainingSeconds))
+            else
+                UI.trackerTimerText:SetText("Reset Timer: Inactive")
+            end
+        end
+
+        activeRun = DungeonOracle
+            and DungeonOracle.Tracker
+            and DungeonOracle.Tracker.state
+            and DungeonOracle.Tracker.state.active_run
+        currentDungeon = DungeonOracle
+            and DungeonOracle.Tracker
+            and DungeonOracle.Tracker.state
+            and DungeonOracle.Tracker.state.current_dungeon
+        zoneId = (activeRun and activeRun.zone_id) or (currentDungeon and currentDungeon.zone_id) or nil
+
+        if UI.trackerRunIdText then
+            if activeRun and activeRun.run_id and activeRun.run_id ~= "" then
+                UI.trackerRunIdText:SetText(string.format("Run ID: %s", activeRun.run_id))
+            else
+                UI.trackerRunIdText:SetText("Run ID: Inactive")
+            end
+        end
+
+        if UI.trackerZoneIdText then
+            if zoneId then
+                UI.trackerZoneIdText:SetText(string.format("Zone ID: %d", zoneId))
+            else
+                UI.trackerZoneIdText:SetText("Zone ID: Inactive")
+            end
+        end
+    end)
 end
 
 -- Public: updates the upload tab footer so the clear prompt always reflects
@@ -335,7 +395,10 @@ end
 -- saved setting, live frame, and settings checkbox aligned.
 function UI.SetTrackerWindowVisible(isVisible)
     local shouldShow = not not isVisible
-    local hasActiveRun = DungeonOracle and DungeonOracle.Tracker and DungeonOracle.Tracker.activeRun
+    local hasActiveRun = DungeonOracle
+        and DungeonOracle.Tracker
+        and DungeonOracle.Tracker.state
+        and (DungeonOracle.Tracker.state.active_run or DungeonOracle.Tracker.state.current_dungeon)
 
     setShowTrackerWindowSetting(shouldShow)
 

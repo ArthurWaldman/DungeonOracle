@@ -3,27 +3,6 @@
 DungeonOracleData = DungeonOracleData or {}
 DungeonOracleData.dungeons = DungeonOracleData.dungeons or {}
 
--- Dungeon schema:
--- {
---     id = "internal-key",
---     name = "Dungeon Name",
---     bosses = {
---         {
---             id = 123,
---             name = "Boss Name",
---             recorded_loot = {
---                 [456] = true,
---             },
---         },
---     },
--- }
---
--- Notes:
--- - id is the addon's internal dungeon identifier.
--- - name should match the player-facing dungeon name we want in exports.
--- - bosses must include every boss we want to track for this dungeon.
--- - boss.id is the NPC ID used for combat-log encounter matching.
--- - recorded_loot is a set of item IDs we explicitly care about for this boss.
 DungeonOracleData.dungeons.temple_of_atalhakkar = {
     id = "temple_of_atalhakkar",
     name = "The Temple of Atal'Hakkar",
@@ -222,5 +201,53 @@ DungeonOracleData.dungeons.temple_of_atalhakkar = {
                 [10828] = true, -- Dire Nail
             },
         },
+    },
+    loot_to_bosses = {
+        [10783] = { 5712, 5713, 5714, 5715, 5716, 5717 }, -- Atal'ai Spaulders -> Zolo, Gasher, Loro, Hukku, Zul'Lor, Mijan
+        [10784] = { 5712, 5713, 5714, 5715, 5716, 5717 }, -- Atal'ai Breastplate -> Zolo, Gasher, Loro, Hukku, Zul'Lor, Mijan
+        [10787] = { 5712, 5713, 5714, 5715, 5716, 5717 }, -- Atal'ai Gloves -> Zolo, Gasher, Loro, Hukku, Zul'Lor, Mijan
+        [10788] = { 5712, 5713, 5714, 5715, 5716, 5717 }, -- Atal'ai Girdle -> Zolo, Gasher, Loro, Hukku, Zul'Lor, Mijan
+        [10785] = { 5712, 5713, 5714, 5715, 5716, 5717 }, -- Atal'ai Leggings -> Zolo, Gasher, Loro, Hukku, Zul'Lor, Mijan
+        [10786] = { 5712, 5713, 5714, 5715, 5716, 5717 }, -- Atal'ai Boots -> Zolo, Gasher, Loro, Hukku, Zul'Lor, Mijan
+
+        [10800] = { 8580 }, -- Darkwater Bracers -> Atal'alarion
+        [10798] = { 8580 }, -- Atal'alarion's Tusk Ring -> Atal'alarion
+        [10799] = { 8580 }, -- Headspike -> Atal'alarion
+
+        [10801] = { 5708 }, -- Slitherscale Boots -> Spawn of Hakkar
+        [10802] = { 5708 }, -- Wingveil Cloak -> Spawn of Hakkar
+
+        [12462] = { 8443 }, -- Embrace of the Wind Serpent -> Avatar of Hakkar
+        [10843] = { 8443 }, -- Featherskin Cape -> Avatar of Hakkar
+        [10845] = { 8443 }, -- Warrior's Embrace -> Avatar of Hakkar
+        [10842] = { 8443 }, -- Windscale Sarong -> Avatar of Hakkar
+        [10846] = { 8443 }, -- Bloodshot Greaves -> Avatar of Hakkar
+        [10838] = { 8443 }, -- Might of Hakkar -> Avatar of Hakkar
+        [10844] = { 8443 }, -- Spire of Hakkar -> Avatar of Hakkar
+
+        [10806] = { 5710 }, -- Vestments of the Atal'ai Prophet -> Jammal'an the Prophet
+        [10808] = { 5710 }, -- Gloves of the Atal'ai Prophet -> Jammal'an the Prophet
+        [10807] = { 5710 }, -- Kilt of the Atal'ai Prophet -> Jammal'an the Prophet
+
+        [10805] = { 5711 }, -- Eater of the Dead -> Ogom the Wretched
+        [10803] = { 5711 }, -- Blade of the Wretched -> Ogom the Wretched
+        [10804] = { 5711 }, -- Fist of the Damned -> Ogom the Wretched
+
+        [12465] = { 5721, 5720, 5722, 5719 }, -- Nightfall Drape -> Dreamscythe, Weaver, Hazzas, Morphaz
+        [12466] = { 5721, 5720, 5722, 5719 }, -- Dawnspire Cord -> Dreamscythe, Weaver, Hazzas, Morphaz
+        [12464] = { 5721, 5720, 5722, 5719 }, -- Bloodfire Talons -> Dreamscythe, Weaver, Hazzas, Morphaz
+        [10797] = { 5721, 5720, 5722, 5719 }, -- Firebreather -> Dreamscythe, Weaver, Hazzas, Morphaz
+        [12463] = { 5721, 5720, 5722, 5719 }, -- Drakefang Butcher -> Dreamscythe, Weaver, Hazzas, Morphaz
+        [12243] = { 5721, 5720, 5722, 5719 }, -- Smoldering Claw -> Dreamscythe, Weaver, Hazzas, Morphaz
+        [10795] = { 5721, 5720, 5722, 5719 }, -- Drakeclaw Band -> Dreamscythe, Weaver, Hazzas, Morphaz
+        [10796] = { 5721, 5720, 5722, 5719 }, -- Drakestone -> Dreamscythe, Weaver, Hazzas, Morphaz
+
+        [10847] = { 5709 }, -- Dragon's Call -> Shade of Eranikus
+        [10833] = { 5709 }, -- Horns of Eranikus -> Shade of Eranikus
+        [10829] = { 5709 }, -- Dragon's Eye -> Shade of Eranikus
+        [10836] = { 5709 }, -- Rod of Corrosion -> Shade of Eranikus
+        [10835] = { 5709 }, -- Crest of Supremacy -> Shade of Eranikus
+        [10837] = { 5709 }, -- Tooth of Eranikus -> Shade of Eranikus
+        [10828] = { 5709 }, -- Dire Nail -> Shade of Eranikus
     },
 }

@@ -3,27 +3,6 @@
 DungeonOracleData = DungeonOracleData or {}
 DungeonOracleData.dungeons = DungeonOracleData.dungeons or {}
 
--- Dungeon schema:
--- {
---     id = "internal-key",
---     name = "Dungeon Name",
---     bosses = {
---         {
---             id = 123,
---             name = "Boss Name",
---             recorded_loot = {
---                 [456] = true,
---             },
---         },
---     },
--- }
---
--- Notes:
--- - id is the addon's internal dungeon identifier.
--- - name should match the player-facing dungeon name we want in exports.
--- - bosses must include every boss we want to track for this dungeon.
--- - boss.id is the NPC ID used for combat-log encounter matching.
--- - recorded_loot is a set of item IDs we explicitly care about for this boss.
 DungeonOracleData.dungeons.scarlet_monastery = {
     id = "scarlet_monastery",
     name = "Scarlet Monastery",
@@ -135,5 +114,49 @@ DungeonOracleData.dungeons.scarlet_monastery = {
                 [7721] = true, -- Hand of Righteousness
             },
         },
+    },
+    loot_to_bosses = {
+        [7682] = { 3983 }, -- Torturing Poker -> Interrogator Vishas
+
+        [7709] = { 6490 }, -- Blighted Leggings -> Azshir the Sleepless
+        [7708] = { 6490 }, -- Necrotic Wand -> Azshir the Sleepless
+        [7731] = { 6490 }, -- Ghostshard Talisman -> Azshir the Sleepless
+
+        [7691] = { 6488 }, -- Embalmed Shroud -> Fallen Champion
+        [7690] = { 6488 }, -- Ebon Vise -> Fallen Champion
+        [7689] = { 6488 }, -- Morbid Dawn -> Fallen Champion
+
+        [7688] = { 6489 }, -- Ironspine's Ribcage -> Ironspine
+        [7687] = { 6489 }, -- Ironspine's Fist -> Ironspine
+        [7686] = { 6489 }, -- Ironspine's Eye -> Ironspine
+
+        [7685] = { 4543 }, -- Orb of the Forgotten Seer -> Bloodmage Thalnos
+        [7684] = { 4543 }, -- Bloodmage Mantle -> Bloodmage Thalnos
+
+        [7710] = { 3974 }, -- Loksey's Training Stick -> Houndmaster Loksey
+        [7756] = { 3974 }, -- Dog Training Gloves -> Houndmaster Loksey
+        [3456] = { 3974 }, -- Dog Whistle -> Houndmaster Loksey
+
+        [7714] = { 6487 }, -- Hypnotic Blade -> Arcanist Doan
+        [7713] = { 6487 }, -- Illusionary Rod -> Arcanist Doan
+        [7712] = { 6487 }, -- Mantle of Doan -> Arcanist Doan
+        [7711] = { 6487 }, -- Robe of Doan -> Arcanist Doan
+
+        [7719] = { 3975 }, -- Raging Berserker's Helm -> Herod
+        [7718] = { 3975 }, -- Herod's Shoulder -> Herod
+        [10330] = { 3975, 3976 }, -- Scarlet Leggings -> Herod, Scarlet Commander Mograine
+        [7717] = { 3975 }, -- Ravager -> Herod
+
+        [19507] = { 4542 }, -- Inquisitor's Shawl -> High Inquisitor Fairbanks
+        [19508] = { 4542 }, -- Branded Leather Bracers -> High Inquisitor Fairbanks
+        [19509] = { 4542 }, -- Dusty Mail Boots -> High Inquisitor Fairbanks
+
+        [7724] = { 3976 }, -- Gauntlets of Divinity -> Scarlet Commander Mograine
+        [7726] = { 3976 }, -- Aegis of the Scarlet Commander -> Scarlet Commander Mograine
+        [7723] = { 3976 }, -- Mograine's Might -> Scarlet Commander Mograine
+
+        [7720] = { 3977 }, -- Whitemane's Chapeau -> High Inquisitor Whitemane
+        [7722] = { 3977 }, -- Triune Amulet -> High Inquisitor Whitemane
+        [7721] = { 3977 }, -- Hand of Righteousness -> High Inquisitor Whitemane
     },
 }

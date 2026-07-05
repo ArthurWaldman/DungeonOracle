@@ -3,27 +3,6 @@
 DungeonOracleData = DungeonOracleData or {}
 DungeonOracleData.dungeons = DungeonOracleData.dungeons or {}
 
--- Dungeon schema:
--- {
---     id = "internal-key",
---     name = "Dungeon Name",
---     bosses = {
---         {
---             id = 123,
---             name = "Boss Name",
---             recorded_loot = {
---                 [456] = true,
---             },
---         },
---     },
--- }
---
--- Notes:
--- - id is the addon's internal dungeon identifier.
--- - name should match the player-facing dungeon name we want in exports.
--- - bosses must include every boss we want to track for this dungeon.
--- - boss.id is the NPC ID used for combat-log encounter matching.
--- - recorded_loot is a set of item IDs we explicitly care about for this boss.
 DungeonOracleData.dungeons.stratholme = {
     id = "stratholme",
     name = "Stratholme",
@@ -249,5 +228,148 @@ DungeonOracleData.dungeons.stratholme = {
                 [16732] = true, -- Legplates of Valor
             },
         },
+    },
+    loot_to_bosses = {
+        [13395] = { 10393 }, -- Skullforge Reaver -> Skul
+        [13394] = { 10393 }, -- Skul's Cold Embrace -> Skul
+        [13396] = { 10393 }, -- Skul's Ghastly Touch -> Skul
+
+        [16682] = { 10558 }, -- Magister's Boots -> Hearthsinger Forresten
+        [13378] = { 10558 }, -- Songbird Blouse -> Hearthsinger Forresten
+        [13384] = { 10558 }, -- Rainbow Girdle -> Hearthsinger Forresten
+        [13383] = { 10558 }, -- Woollies of the Prancing Minstrel -> Hearthsinger Forresten
+        [13379] = { 10558 }, -- Piccolo of the Flaming Fire -> Hearthsinger Forresten
+
+        [16717] = { 10516 }, -- Wildheart Gloves -> The Unforgiven
+        [13404] = { 10516 }, -- Mask of the Unforgiven -> The Unforgiven
+        [13405] = { 10516 }, -- Wailing Nightbane Pauldrons -> The Unforgiven
+        [13409] = { 10516 }, -- Tears of the Unforgiven -> The Unforgiven
+        [13408] = { 10516 }, -- Soul Breaker -> The Unforgiven
+
+        [16724] = { 10808 }, -- Lightforge Gauntlets -> Timmy the Cruel
+        [13400] = { 10808 }, -- Vambraces of the Sadist -> Timmy the Cruel
+        [13403] = { 10808 }, -- Grimgore Noose -> Timmy the Cruel
+        [13402] = { 10808 }, -- Timmy's Galoshes -> Timmy the Cruel
+        [13401] = { 10808 }, -- The Cruel Hand of Timmy -> Timmy the Cruel
+
+        [18781] = { 11120 }, -- Bottom Half of Advanced Armorsmithing: Volume II -> Crimson Hammersmith
+
+        [16708] = { 10997 }, -- Shadowcraft Spaulders -> Cannon Master Willey
+        [22407] = { 10997 }, -- Helm of the New Moon -> Cannon Master Willey
+        [22403] = { 10997 }, -- Diana's Pearl Necklace -> Cannon Master Willey
+        [22405] = { 10997 }, -- Mantle of the Scarlet Crusade -> Cannon Master Willey
+        [18721] = { 10997 }, -- Barrage Girdle -> Cannon Master Willey
+        [13381] = { 10997 }, -- Master Cannoneer Boots -> Cannon Master Willey
+        [13382] = { 10997 }, -- Cannonball Runner -> Cannon Master Willey
+        [13380] = { 10997 }, -- Willey's Portable Howitzer -> Cannon Master Willey
+        [13377] = { 10997 }, -- Miniature Cannon Balls -> Cannon Master Willey
+        [22404] = { 10997 }, -- Willey's Back Scratcher -> Cannon Master Willey
+        [22406] = { 10997 }, -- Redemption -> Cannon Master Willey
+        [12839] = { 10997 }, -- Plans: Heartseeker -> Cannon Master Willey
+
+        [16692] = { 10811 }, -- Devout Gloves -> Archivist Galford
+        [13386] = { 10811 }, -- Archivist Cape -> Archivist Galford
+        [13387] = { 10811 }, -- Foresight Girdle -> Archivist Galford
+        [18716] = { 10811 }, -- Ash Covered Boots -> Archivist Galford
+        [13385] = { 10811 }, -- Tome of Knowledge -> Archivist Galford
+        [12811] = { 10811 }, -- Righteous Orb -> Archivist Galford
+        [22897] = { 10811 }, -- Tome of Conjure Food VII -> Archivist Galford
+
+        [13353] = { 10813 }, -- Book of the Dead -> Balnazzar
+        [14512] = { 10813 }, -- Pattern: Truefaith Vestments -> Balnazzar
+        [16725] = { 10813 }, -- Lightforge Boots -> Balnazzar
+        [13359] = { 10813 }, -- Crown of Tyranny -> Balnazzar
+        [18718] = { 10813 }, -- Grand Crusader's Helm -> Balnazzar
+        [12103] = { 10813 }, -- Star of Mystaria -> Balnazzar
+        [18720] = { 10813 }, -- Shroud of the Nathrezim -> Balnazzar
+        [13358] = { 10813 }, -- Wyrmtongue Shoulders -> Balnazzar
+        [13369] = { 10813 }, -- Fire Striders -> Balnazzar
+        [13360] = { 10813 }, -- Gift of the Elven Magi -> Balnazzar
+        [18717] = { 10813 }, -- Hammer of the Grand Crusader -> Balnazzar
+        [22334] = { 10813 }, -- Band of Mending -> Balnazzar
+        [13348] = { 10813 }, -- Demonshear -> Balnazzar
+        [13520] = { 10813 }, -- Recipe: Flask of Distilled Wisdom -> Balnazzar
+
+        [18727] = { 10435 }, -- Crimson Felt Hat -> Magistrate Barthilas
+        [13376] = { 10435 }, -- Royal Tribunal Cloak -> Magistrate Barthilas
+        [18726] = { 10435 }, -- Magistrate's Cuffs -> Magistrate Barthilas
+        [18722] = { 10435 }, -- Death Grips -> Magistrate Barthilas
+        [23198] = { 10435 }, -- Idol of Brutality -> Magistrate Barthilas
+        [18725] = { 10435 }, -- Peacemaker -> Magistrate Barthilas
+
+        [13397] = { 10809 }, -- Stoneskin Gargoyle Cape -> Stonespine
+        [13954] = { 10809 }, -- Verdant Footpads -> Stonespine
+        [13399] = { 10809 }, -- Gargoyle Shredder Talons -> Stonespine
+
+        [16704] = { 10436 }, -- Dreadmist Sandals -> Baroness Anastari
+        [18728] = { 10436 }, -- Anastari Heirloom -> Baroness Anastari
+        [18730] = { 10436 }, -- Shadowy Laced Handwraps -> Baroness Anastari
+        [18729] = { 10436 }, -- Screeching Bow -> Baroness Anastari
+        [13534] = { 10436 }, -- Banshee Finger -> Baroness Anastari
+        [13538] = { 10436 }, -- Windshrieker Pauldrons -> Baroness Anastari
+        [13535] = { 10436 }, -- Coldtouch Phantom Wraps -> Baroness Anastari
+        [13537] = { 10436 }, -- Chillhide Bracers -> Baroness Anastari
+        [13539] = { 10436 }, -- Banshee's Touch -> Baroness Anastari
+        [13514] = { 10436 }, -- Wail of the Banshee -> Baroness Anastari
+
+        [18783] = { 11121 }, -- Bottom Half of Advanced Armorsmithing: Volume III -> Black Guard Swordsmith
+
+        [16675] = { 10437 }, -- Beaststalker's Boots -> Nerub'enkan
+        [18740] = { 10437 }, -- Thuzadin Sash -> Nerub'enkan
+        [18739] = { 10437 }, -- Chitinous Plate Legguards -> Nerub'enkan
+        [18738] = { 10437 }, -- Carapace Spine Crossbow -> Nerub'enkan
+        [13529] = { 10437 }, -- Husk of Nerub'enkan -> Nerub'enkan
+        [13533] = { 10437 }, -- Acid-etched Pauldrons -> Nerub'enkan
+        [13532] = { 10437 }, -- Darkspinner Claws -> Nerub'enkan
+        [13531] = { 10437 }, -- Crypt Stalker Leggings -> Nerub'enkan
+        [13530] = { 10437 }, -- Fangdrip Runners -> Nerub'enkan
+        [13508] = { 10437 }, -- Eye of Arachnida -> Nerub'enkan
+
+        [16691] = { 10438 }, -- Devout Sandals -> Maleki the Pallid
+        [18734] = { 10438 }, -- Pale Moon Cloak -> Maleki the Pallid
+        [18735] = { 10438 }, -- Maleki's Footwraps -> Maleki the Pallid
+        [13524] = { 10438 }, -- Skull of Burning Shadows -> Maleki the Pallid
+        [18737] = { 10438 }, -- Bone Slicing Hatchet -> Maleki the Pallid
+        [13528] = { 10438 }, -- Twilight Void Bracers -> Maleki the Pallid
+        [13525] = { 10438 }, -- Darkbind Fingers -> Maleki the Pallid
+        [13526] = { 10438 }, -- Flamescarred Girdle -> Maleki the Pallid
+        [13527] = { 10438 }, -- Lavawalker Greaves -> Maleki the Pallid
+        [13509] = { 10438 }, -- Clutch of Foresight -> Maleki the Pallid
+        [12833] = { 10438 }, -- Plans: Hammer of the Titans -> Maleki the Pallid
+
+        [16737] = { 10439 }, -- Gauntlets of Valor -> Ramstein the Gorger
+        [18723] = { 10439 }, -- Animated Chain Necklace -> Ramstein the Gorger
+        [13374] = { 10439 }, -- Soulstealer Mantle -> Ramstein the Gorger
+        [13373] = { 10439 }, -- Band of Flesh -> Ramstein the Gorger
+        [13515] = { 10439 }, -- Ramstein's Lightning Bolts -> Ramstein the Gorger
+        [13375] = { 10439 }, -- Crest of Retribution -> Ramstein the Gorger
+        [13372] = { 10439 }, -- Slavedriver's Cane -> Ramstein the Gorger
+
+        [13335] = { 10440 }, -- Deathcharger's Reins -> Baron Rivendare
+        [13505] = { 10440 }, -- Runeblade of Baron Rivendare -> Baron Rivendare
+        [22411] = { 10440 }, -- Helm of the Executioner -> Baron Rivendare
+        [22412] = { 10440 }, -- Thuzadin Mantle -> Baron Rivendare
+        [13340] = { 10440 }, -- Cape of the Black Baron -> Baron Rivendare
+        [13346] = { 10440 }, -- Robes of the Exalted -> Baron Rivendare
+        [22409] = { 10440 }, -- Tunic of the Crescent Moon -> Baron Rivendare
+        [13344] = { 10440 }, -- Dracorian Gauntlets -> Baron Rivendare
+        [22410] = { 10440 }, -- Gauntlets of Deftness -> Baron Rivendare
+        [13345] = { 10440 }, -- Seal of Rivendare -> Baron Rivendare
+        [22408] = { 10440 }, -- Ritssyn's Wand of Bad Mojo -> Baron Rivendare
+        [13349] = { 10440 }, -- Scepter of the Unholy -> Baron Rivendare
+        [13368] = { 10440 }, -- Bonescraper -> Baron Rivendare
+        [13361] = { 10440 }, -- Skullforge Reaver -> Baron Rivendare
+        [16694] = { 10440 }, -- Devout Skirt -> Baron Rivendare
+        [16687] = { 10440 }, -- Magister's Leggings -> Baron Rivendare
+        [16699] = { 10440 }, -- Dreadmist Leggings -> Baron Rivendare
+        [16709] = { 10440 }, -- Shadowcraft Pants -> Baron Rivendare
+        [16719] = { 10440 }, -- Wildheart Kilt -> Baron Rivendare
+        [16678] = { 10440 }, -- Beaststalker's Pants -> Baron Rivendare
+        [16668] = { 10440 }, -- Kilt of Elements -> Baron Rivendare
+        [16728] = { 10440 }, -- Lightforge Legplates -> Baron Rivendare
+        [16732] = { 10440 }, -- Legplates of Valor -> Baron Rivendare
+
+        [13395] = { 10393 }, -- Skullforge Reaver -> Skul
+        [13361] = { 10440 }, -- Skullforge Reaver -> Baron Rivendare
     },
 }

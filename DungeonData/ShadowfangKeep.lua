@@ -3,27 +3,6 @@
 DungeonOracleData = DungeonOracleData or {}
 DungeonOracleData.dungeons = DungeonOracleData.dungeons or {}
 
--- Dungeon schema:
--- {
---     id = "internal-key",
---     name = "Dungeon Name",
---     bosses = {
---         {
---             id = 123,
---             name = "Boss Name",
---             recorded_loot = {
---                 [456] = true,
---             },
---         },
---     },
--- }
---
--- Notes:
--- - id is the addon's internal dungeon identifier.
--- - name should match the player-facing dungeon name we want in exports.
--- - bosses must include every boss we want to track for this dungeon.
--- - boss.id is the NPC ID used for combat-log encounter matching.
--- - recorded_loot is a set of item IDs we explicitly care about for this boss.
 DungeonOracleData.dungeons.shadowfang_keep = {
     id = "shadowfang_keep",
     name = "Shadowfang Keep",
@@ -116,5 +95,34 @@ DungeonOracleData.dungeons.shadowfang_keep = {
                 [6220] = true, -- Meteor Shard
             },
         },
+    },
+    loot_to_bosses = {
+        [6341] = { 3865, 3864 }, -- Eerie Stable Lantern -> Fel Steed, Shadow Charger
+
+        [1292] = { 3886 }, -- Butcher's Cleaver -> Razorclaw the Butcher
+        [6226] = { 3886 }, -- Bloody Apron -> Razorclaw the Butcher
+        [6633] = { 3886 }, -- Butcher's Slicer -> Razorclaw the Butcher
+
+        [6321] = { 3887 }, -- Silverlaine's Family Seal -> Baron Silverlaine
+        [6323] = { 3887 }, -- Baron's Scepter -> Baron Silverlaine
+
+        [6320] = { 4278 }, -- Commander's Crest -> Commander Springvale
+        [3191] = { 4278 }, -- Arced War Axe -> Commander Springvale
+
+        [6318] = { 4279 }, -- Odo's Ley Staff -> Odo the Blindwatcher
+        [6319] = { 4279 }, -- Girdle of the Blindwatcher -> Odo the Blindwatcher
+
+        [6642] = { 3872 }, -- Phantom Armor -> Deathsworn Captain
+        [6641] = { 3872 }, -- Haunting Blade -> Deathsworn Captain
+
+        [6340] = { 4274 }, -- Fenrus' Hide -> Fenrus the Devourer
+        [3230] = { 4274 }, -- Black Wolf Bracers -> Fenrus the Devourer
+
+        [3748] = { 3927 }, -- Feline Mantle -> Wolf Master Nandos
+        [6314] = { 3927 }, -- Wolfmaster Cape -> Wolf Master Nandos
+
+        [6324] = { 4275 }, -- Robes of Arugal -> Archmage Arugal
+        [6392] = { 4275 }, -- Belt of Arugal -> Archmage Arugal
+        [6220] = { 4275 }, -- Meteor Shard -> Archmage Arugal
     },
 }

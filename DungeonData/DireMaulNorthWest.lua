@@ -3,27 +3,6 @@
 DungeonOracleData = DungeonOracleData or {}
 DungeonOracleData.dungeons = DungeonOracleData.dungeons or {}
 
--- Dungeon schema:
--- {
---     id = "internal-key",
---     name = "Dungeon Name",
---     bosses = {
---         {
---             id = 123,
---             name = "Boss Name",
---             recorded_loot = {
---                 [456] = true,
---             },
---         },
---     },
--- }
---
--- Notes:
--- - id is the addon's internal dungeon identifier.
--- - name should match the player-facing dungeon name we want in exports.
--- - bosses must include every boss we want to track for this dungeon.
--- - boss.id is the NPC ID used for combat-log encounter matching.
--- - recorded_loot is a set of item IDs we explicitly care about for this boss.
 DungeonOracleData.dungeons.dire_maul_north_west = {
     id = "dire_maul_north_west",
     name = "Dire Maul",
@@ -204,5 +183,87 @@ DungeonOracleData.dungeons.dire_maul_north_west = {
                 [18780] = true, -- Top Half of Advanced Armorsmithing: Volume III
             },
         },
+    },
+    loot_to_bosses = {
+        [18393] = { 11489 }, -- Warpwood Binding -> Tendris Warpwood
+        [18390] = { 11489 }, -- Tanglemoss Leggings -> Tendris Warpwood
+        [18352] = { 11489 }, -- Petrified Bark Shield -> Tendris Warpwood
+        [18353] = { 11489 }, -- Stoneflower Staff -> Tendris Warpwood
+
+        [18383] = { 11488 }, -- Force Imbued Gauntlets -> Illyanna Ravenoak
+        [18386] = { 11488 }, -- Padre's Trousers -> Illyanna Ravenoak
+        [18349] = { 11488 }, -- Gauntlets of Accuracy -> Illyanna Ravenoak
+        [18347] = { 11488 }, -- Well Balanced Axe -> Illyanna Ravenoak
+
+        [18374] = { 11487 }, -- Mark of the Pariah -> Magister Kalendris
+        [18397] = { 11487 }, -- Elder Magus Pendant -> Magister Kalendris
+        [18371] = { 11487 }, -- Mindtap Talisman -> Magister Kalendris
+        [18350] = { 11487 }, -- Amplifying Cloak -> Magister Kalendris
+        [18351] = { 11487 }, -- Magically Sealed Bracers -> Magister Kalendris
+        [22309] = { 11487 }, -- Pattern: Big Bag of Enchantment -> Magister Kalendris
+
+        [18387] = { 11467 }, -- Brightspark Gloves -> Tsu'zee
+        [18346] = { 11467 }, -- Threadbare Trousers -> Tsu'zee
+        [18345] = { 11467 }, -- Murmuring Ring -> Tsu'zee
+
+        [18381] = { 11496 }, -- Evil Eye Pendant -> Immol'thar
+        [18384] = { 11496 }, -- Bile-Etched Spaulders -> Immol'thar
+        [18389] = { 11496 }, -- Cloak of the Cosmos -> Immol'thar
+        [18385] = { 11496 }, -- Robe of Everlasting Night -> Immol'thar
+        [18394] = { 11496 }, -- Demon Howl Wristguards -> Immol'thar
+        [18377] = { 11496 }, -- Quickdraw Quiver -> Immol'thar
+        [18391] = { 11496 }, -- Eyestalk Cord -> Immol'thar
+        [18379] = { 11496 }, -- Odious Greaves -> Immol'thar
+        [18370] = { 11496 }, -- Vigilance Charm -> Immol'thar
+        [18372] = { 11496 }, -- Blade of the New Moon -> Immol'thar
+
+        [18382] = { 11486 }, -- Flamecrest Gauntlets -> Prince Tortheldrin
+        [18373] = { 11486 }, -- Chestplate of Tranquility -> Prince Tortheldrin
+        [18375] = { 11486 }, -- Bracers of the Eclipse -> Prince Tortheldrin
+        [18378] = { 11486 }, -- Silvermoon Leggings -> Prince Tortheldrin
+        [18380] = { 11486 }, -- Eldritch Reinforced Legplates -> Prince Tortheldrin
+        [18395] = { 11486 }, -- Emerald Flame Ring -> Prince Tortheldrin
+        [18388] = { 11486 }, -- Stoneshatter -> Prince Tortheldrin
+        [18396] = { 11486 }, -- Mind Carver -> Prince Tortheldrin
+        [18376] = { 11486 }, -- Timeworn Mace -> Prince Tortheldrin
+        [18392] = { 11486 }, -- Distracting Dagger -> Prince Tortheldrin
+
+        [18494] = { 14326, 14323 }, -- Denwatcher's Shoulders -> Guard Mol'dar, Guard Slip'kik
+        [18493] = { 14326, 14323 }, -- Bulky Iron Spaulders -> Guard Mol'dar, Guard Slip'kik
+        [18496] = { 14326, 14323 }, -- Helm of Restrained Power -> Guard Mol'dar, Guard Slip'kik
+        [18497] = { 14326, 14323 }, -- Sublime Wristguards -> Guard Mol'dar, Guard Slip'kik
+        [18498] = { 14326, 14323 }, -- Hedgecutter -> Guard Mol'dar, Guard Slip'kik
+
+        [18450] = { 14326, 14321, 14323 }, -- Robe of Combustion -> Guard Mol'dar, Guard Fengus, Guard Slip'kik
+        [18458] = { 14326, 14321, 14323 }, -- Modest Armguards -> Guard Mol'dar, Guard Fengus, Guard Slip'kik
+        [18459] = { 14326, 14321, 14323 }, -- Gallant's Wristguards -> Guard Mol'dar, Guard Fengus, Guard Slip'kik
+        [18451] = { 14326, 14321, 14323 }, -- Hyena Hide Jerkin -> Guard Mol'dar, Guard Fengus, Guard Slip'kik
+        [18462] = { 14326, 14321, 14323 }, -- Jagged Bone Fist -> Guard Mol'dar, Guard Fengus, Guard Slip'kik
+        [18463] = { 14326, 14321, 14323 }, -- Ogre Pocket Knife -> Guard Mol'dar, Guard Fengus, Guard Slip'kik
+        [18464] = { 14326, 14321, 14323 }, -- Gordok Nose Ring -> Guard Mol'dar, Guard Fengus, Guard Slip'kik
+        [18460] = { 14326, 14321, 14323 }, -- Unsophisticated Hand Cannon -> Guard Mol'dar, Guard Fengus, Guard Slip'kik
+
+        [18425] = { 14322 }, -- Kreeg's Mug -> Stomper Kreeg
+
+        [18503] = { 14325 }, -- Kromcrush's Chestplate -> Captain Kromcrush
+        [18505] = { 14325 }, -- Mugger's Belt -> Captain Kromcrush
+        [18507] = { 14325 }, -- Boots of the Full Moon -> Captain Kromcrush
+        [18502] = { 14325 }, -- Monstrous Glaive -> Captain Kromcrush
+
+        [18490] = { 14324 }, -- Insightful Hood -> Cho'Rush the Observer
+        [18483] = { 14324 }, -- Mana Channeling Wand -> Cho'Rush the Observer
+        [18485] = { 14324 }, -- Observer's Shield -> Cho'Rush the Observer
+        [18484] = { 14324 }, -- Cho'Rush's Blade -> Cho'Rush the Observer
+
+        [18526] = { 11501 }, -- Crown of the Ogre King -> King Gordok
+        [18525] = { 11501 }, -- Bracers of Prosperity -> King Gordok
+        [18527] = { 11501 }, -- Harmonious Gauntlets -> King Gordok
+        [18524] = { 11501 }, -- Leggings of Destruction -> King Gordok
+        [18521] = { 11501 }, -- Grimy Metal Boots -> King Gordok
+        [18522] = { 11501 }, -- Band of the Ogre King -> King Gordok
+        [18523] = { 11501 }, -- Brightly Glowing Stone -> King Gordok
+        [18520] = { 11501 }, -- Barbarous Blade -> King Gordok
+        [19258] = { 11501 }, -- Ace of Warlords -> King Gordok
+        [18780] = { 11501 }, -- Top Half of Advanced Armorsmithing: Volume III -> King Gordok
     },
 }
