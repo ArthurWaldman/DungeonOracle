@@ -91,6 +91,9 @@ local ROLE_TANK = "TANK"
 local SHADOWFORM_SPELL_ID = 15473
 local RIGHTEOUS_FURY_SPELL_ID = 25780
 local ITEM_LINK_ID_PATTERN = "item:(%d+)"
+local ITEM_QUALITY_UNCOMMON = 2
+local ITEM_QUALITY_RARE = 3
+local ITEM_QUALITY_EPIC = 4
 
 -- Produces a simple UUID-like identifier that is sufficient for run identity.
 local function createRunId()
@@ -897,6 +900,42 @@ local function getItemIdFromLootMessage(message)
     return tonumber(itemId)
 end
 
+local function isTrackedBossLootItem(itemId)
+    local bossIds = getTrackedBossIdsForLoot(itemId)
+
+    return bossIds and #bossIds > 0 or false
+end
+
+local function getItemQualityByItemId(itemId)
+    local _, _, itemQuality = GetItemInfo(itemId)
+
+    return itemQuality
+end
+
+local function recordNonBossLootDrop(itemId)
+    local activeRun = Tracker.state.active_run
+    local itemQuality
+
+    if not activeRun or not itemId then
+        return false
+    end
+
+    itemQuality = getItemQualityByItemId(itemId)
+    if itemQuality == ITEM_QUALITY_UNCOMMON then
+        activeRun.green_drops = (tonumber(activeRun.green_drops) or 0) + 1
+    elseif itemQuality == ITEM_QUALITY_RARE then
+        activeRun.blue_drops = (tonumber(activeRun.blue_drops) or 0) + 1
+    elseif itemQuality == ITEM_QUALITY_EPIC then
+        activeRun.purple_drops = (tonumber(activeRun.purple_drops) or 0) + 1
+    else
+        return false
+    end
+
+    persistActiveRun()
+    printMessage(string.format("recorded non-boss loot drop %d (quality %d).", itemId, itemQuality))
+    return true
+end
+
 local function recordBossLoot(itemId)
     local activeRun = Tracker.state.active_run
     local bossIds
@@ -987,6 +1026,9 @@ local function setActiveRun(runId, dungeonName, startedAt, zoneId, party, hardco
         first_death = nil,
         boss_timer = {},
         boss_loot = {},
+        green_drops = 0,
+        blue_drops = 0,
+        purple_drops = 0,
         pending_boss_loot_queue = {},
     }
 
@@ -1024,6 +1066,9 @@ local function reactivateKnownRunByDungeon(dungeonName, zoneId)
         first_death = existingRun.first_death,
         boss_timer = existingRun.boss_timer or {},
         boss_loot = existingRun.boss_loot or {},
+        green_drops = existingRun.green_drops or 0,
+        blue_drops = existingRun.blue_drops or 0,
+        purple_drops = existingRun.purple_drops or 0,
         pending_boss_loot_queue = existingRun.pending_boss_loot_queue or {},
     }
 
@@ -1511,7 +1556,13 @@ function Tracker.HandleEvent(event, ...)
         end
     elseif event == "CHAT_MSG_LOOT" then
         local lootMessage = ...
-        recordBossLoot(getItemIdFromLootMessage(lootMessage))
+        local itemId = getItemIdFromLootMessage(lootMessage)
+
+        if itemId and isTrackedBossLootItem(itemId) then
+            recordBossLoot(itemId)
+        elseif itemId then
+            recordNonBossLootDrop(itemId)
+        end
     elseif event == "COMBAT_LOG_EVENT_UNFILTERED" then
         local _, subEvent, _, sourceGUID, _, _, _, destGUID, destName = CombatLogGetCurrentEventInfo()
         local zoneId

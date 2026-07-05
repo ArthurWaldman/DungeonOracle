@@ -23,7 +23,7 @@ local MINIMAP_ICON = "Interface\\Icons\\INV_Misc_Note_01"
 local UPLOAD_URL = "https://www.dropbox.com/request/2okeud4m0vplo6e8nsmk"
 local PATH_FONT_SIZE = 9
 local TRACKER_WINDOW_WIDTH = 360
-local TRACKER_WINDOW_HEIGHT = 192
+local TRACKER_WINDOW_HEIGHT = 208
 local TRACKER_LOG_LINE_LIMIT = 8
 
 -- Tab definitions drive both the clickable tab buttons and the associated
@@ -263,8 +263,12 @@ local function createTrackerWindow()
     zoneIdText:SetPoint("TOPLEFT", runIdText, "BOTTOMLEFT", 0, -6)
     zoneIdText:SetText("Zone ID: Inactive")
 
+    local lootCounterText = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    lootCounterText:SetPoint("TOPLEFT", zoneIdText, "BOTTOMLEFT", 0, -6)
+    lootCounterText:SetText("Green: 0 | Blue: 0 | Purple: 0")
+
     local bossQueueText = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    bossQueueText:SetPoint("TOPLEFT", zoneIdText, "BOTTOMLEFT", 0, -6)
+    bossQueueText:SetPoint("TOPLEFT", lootCounterText, "BOTTOMLEFT", 0, -6)
     bossQueueText:SetText("Boss Queue: Inactive")
 
     local logText = frame:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
@@ -282,6 +286,7 @@ local function createTrackerWindow()
     UI.trackerBossTimerText = bossTimerText
     UI.trackerRunIdText = runIdText
     UI.trackerZoneIdText = zoneIdText
+    UI.trackerLootCounterText = lootCounterText
     UI.trackerBossQueueText = bossQueueText
     UI.trackerLogText = logText
     UI.trackerLogLines = { "No loot detected" }
@@ -351,6 +356,19 @@ local function createTrackerWindow()
                 UI.trackerZoneIdText:SetText(string.format("Zone ID: %d", zoneId))
             else
                 UI.trackerZoneIdText:SetText("Zone ID: Inactive")
+            end
+        end
+
+        if UI.trackerLootCounterText then
+            if activeRun then
+                UI.trackerLootCounterText:SetText(string.format(
+                    "Green: %d | Blue: %d | Purple: %d",
+                    tonumber(activeRun.green_drops) or 0,
+                    tonumber(activeRun.blue_drops) or 0,
+                    tonumber(activeRun.purple_drops) or 0
+                ))
+            else
+                UI.trackerLootCounterText:SetText("Green: 0 | Blue: 0 | Purple: 0")
             end
         end
 

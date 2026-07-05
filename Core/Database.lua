@@ -52,6 +52,9 @@ DungeonOracle.Database = DungeonOracle.Database or {}
 --         boss_loot = {
 --             [1716] = 5191, -- -1 means no tracked loot was resolved before the run ended
 --         },
+--         green_drops = 3,
+--         blue_drops = 1,
+--         purple_drops = 0,
 --         pending_boss_loot_queue = {
 --             1716,
 --         },
@@ -100,6 +103,9 @@ DungeonOracle.Database = DungeonOracle.Database or {}
 --             boss_loot = {
 --                 [1716] = 5191, -- -1 means no tracked loot was resolved before the run ended
 --             },
+--             green_drops = 3,
+--             blue_drops = 1,
+--             purple_drops = 0,
 --         },
 --     },
 -- }
@@ -254,6 +260,16 @@ local function sanitizeHardcoreFlag(hardcore)
     return hardcore == true
 end
 
+local function sanitizeDropCount(value)
+    value = tonumber(value) or 0
+
+    if value < 0 then
+        return 0
+    end
+
+    return math.floor(value)
+end
+
 -- Returns a shallow copy so archived runs are not later mutated through the
 -- active_run reference.
 local function copyTable(source)
@@ -310,6 +326,9 @@ local function createOrderedCompletedRun(activeRun, endedAt)
         first_death = copyFirstDeathSnapshot(activeRun.first_death),
         boss_timer = copyBossTimerSnapshot(activeRun.boss_timer),
         boss_loot = copyBossLootSnapshot(activeRun.boss_loot),
+        green_drops = sanitizeDropCount(activeRun.green_drops),
+        blue_drops = sanitizeDropCount(activeRun.blue_drops),
+        purple_drops = sanitizeDropCount(activeRun.purple_drops),
     }
 end
 
@@ -364,6 +383,9 @@ function Database.SetActiveRun(activeRun)
             first_death = copyFirstDeathSnapshot(activeRun.first_death),
             boss_timer = copyBossTimerSnapshot(activeRun.boss_timer),
             boss_loot = copyBossLootSnapshot(activeRun.boss_loot),
+            green_drops = sanitizeDropCount(activeRun.green_drops),
+            blue_drops = sanitizeDropCount(activeRun.blue_drops),
+            purple_drops = sanitizeDropCount(activeRun.purple_drops),
             pending_boss_loot_queue = copyPendingBossLootQueueSnapshot(activeRun.pending_boss_loot_queue),
         }
     else
@@ -396,6 +418,9 @@ function Database.GetActiveRun()
         first_death = copyFirstDeathSnapshot(DungeonOracleDB.active_run.first_death),
         boss_timer = copyBossTimerSnapshot(DungeonOracleDB.active_run.boss_timer),
         boss_loot = copyBossLootSnapshot(DungeonOracleDB.active_run.boss_loot),
+        green_drops = sanitizeDropCount(DungeonOracleDB.active_run.green_drops),
+        blue_drops = sanitizeDropCount(DungeonOracleDB.active_run.blue_drops),
+        purple_drops = sanitizeDropCount(DungeonOracleDB.active_run.purple_drops),
         pending_boss_loot_queue = copyPendingBossLootQueueSnapshot(DungeonOracleDB.active_run.pending_boss_loot_queue),
     }
 end
