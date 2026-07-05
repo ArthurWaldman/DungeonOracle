@@ -138,6 +138,9 @@ DungeonOracleDB = {
                 duration = 42, -- -1 means the timer failed after spirit release
             },
         },
+        boss_loot = {
+            [1716] = 5191, -- -1 means no tracked loot was resolved before the run ended
+        },
     },
     records = {
         {
@@ -174,6 +177,9 @@ DungeonOracleDB = {
                     boss_id = 1716,
                     duration = 42, -- -1 means the timer failed after spirit release
                 },
+            },
+            boss_loot = {
+                [1716] = 5191, -- -1 means no tracked loot was resolved before the run ended
             },
         },
     },
@@ -223,6 +229,9 @@ DungeonOracleDB = {
 
 - `boss_timer`
   A list of completed boss kill timers. Each entry stores the tracked `boss_id` and the kill `duration` in seconds. A value of `-1` means the timer failed because the player released spirit before seeing the boss die.
+
+- `boss_loot`
+  A map from tracked `boss_id` to the tracked `loot_id` recorded for that boss. A value of `-1` means the boss still needed loot resolution when the run ended.
 
 ## Dungeon Data
 

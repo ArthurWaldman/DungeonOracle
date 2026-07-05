@@ -44,6 +44,12 @@ DungeonOracle.Database = DungeonOracle.Database or {}
 --                 duration = 42, -- -1 means the timer failed after spirit release
 --             },
 --         },
+--         boss_loot = {
+--             [1716] = 5191, -- -1 means no tracked loot was resolved before the run ended
+--         },
+--         pending_boss_loot_queue = {
+--             1716,
+--         },
 --     },
 --     records = {
 --         {
@@ -80,6 +86,9 @@ DungeonOracle.Database = DungeonOracle.Database or {}
 --                     boss_id = 1716,
 --                     duration = 42, -- -1 means the timer failed after spirit release
 --                 },
+--             },
+--             boss_loot = {
+--                 [1716] = 5191, -- -1 means no tracked loot was resolved before the run ended
 --             },
 --         },
 --     },
@@ -161,6 +170,50 @@ local function copyBossTimerSnapshot(bossTimer)
     return copy
 end
 
+-- Copies the boss loot map so active and archived runs do not share the same
+-- mutable boss-to-loot table.
+local function copyBossLootSnapshot(bossLoot)
+    local copy = {}
+    local bossId
+    local lootId
+
+    if not bossLoot then
+        return copy
+    end
+
+    for bossId, lootId in pairs(bossLoot) do
+        copy[bossId] = lootId
+    end
+
+    return copy
+end
+
+-- Copies the pending boss loot queue so the unresolved boss state can survive
+-- reloads while a run is still active.
+local function copyPendingBossLootQueueSnapshot(queue)
+    local copy = {}
+    local index
+    local bossId
+
+    if not queue then
+        return copy
+    end
+
+    for index, bossId in ipairs(queue) do
+        copy[index] = bossId
+    end
+
+    return copy
+end
+
+local function hasAnyArrayEntries(values)
+    if type(values) ~= "table" then
+        return false
+    end
+
+    return next(values) ~= nil
+end
+
 -- Normalizes the replacements counter so the database always stores a
 -- non-negative integer.
 local function sanitizeReplacementCount(replacements)
@@ -233,6 +286,7 @@ local function createOrderedCompletedRun(activeRun, endedAt)
         replacements = sanitizeReplacementCount(activeRun.replacements),
         deaths = copyDeathsSnapshot(activeRun.deaths),
         boss_timer = copyBossTimerSnapshot(activeRun.boss_timer),
+        boss_loot = copyBossLootSnapshot(activeRun.boss_loot),
     }
 end
 
@@ -285,6 +339,8 @@ function Database.SetActiveRun(activeRun)
             replacements = sanitizeReplacementCount(activeRun.replacements),
             deaths = copyDeathsSnapshot(activeRun.deaths),
             boss_timer = copyBossTimerSnapshot(activeRun.boss_timer),
+            boss_loot = copyBossLootSnapshot(activeRun.boss_loot),
+            pending_boss_loot_queue = copyPendingBossLootQueueSnapshot(activeRun.pending_boss_loot_queue),
         }
     else
         DungeonOracleDB.active_run = nil
@@ -314,6 +370,8 @@ function Database.GetActiveRun()
         replacements = sanitizeReplacementCount(DungeonOracleDB.active_run.replacements),
         deaths = copyDeathsSnapshot(DungeonOracleDB.active_run.deaths),
         boss_timer = copyBossTimerSnapshot(DungeonOracleDB.active_run.boss_timer),
+        boss_loot = copyBossLootSnapshot(DungeonOracleDB.active_run.boss_loot),
+        pending_boss_loot_queue = copyPendingBossLootQueueSnapshot(DungeonOracleDB.active_run.pending_boss_loot_queue),
     }
 end
 
@@ -384,6 +442,12 @@ function Database.CompleteActiveRun(endedAt)
     Database.Initialize()
 
     if not DungeonOracleDB.active_run then
+        return nil
+    end
+
+    if not hasAnyArrayEntries(DungeonOracleDB.active_run.deaths)
+        and not hasAnyArrayEntries(DungeonOracleDB.active_run.boss_timer) then
+        DungeonOracleDB.active_run = nil
         return nil
     end
 

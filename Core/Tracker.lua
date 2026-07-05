@@ -18,6 +18,7 @@ local TRACKER_EVENTS = {
     "UNIT_SPELLCAST_START",
     "UNIT_SPELLCAST_SUCCEEDED",
     "COMBAT_LOG_EVENT_UNFILTERED",
+    "CHAT_MSG_LOOT",
 }
 
 local OUTSIDE_INSTANCE_TIMEOUT_SECONDS = 30
@@ -34,6 +35,7 @@ local function createInitialState()
         last_group_size = 0,
         last_replacement_signature = nil,
         active_boss_engagements = {},
+        pending_boss_loot_queue = {},
     }
 end
 
@@ -72,6 +74,10 @@ end
 
 -- Persists the active_run snapshot whenever tracker-owned metadata changes.
 local function persistActiveRun()
+    if Tracker.state and Tracker.state.active_run then
+        Tracker.state.active_run.pending_boss_loot_queue = Tracker.state.pending_boss_loot_queue or {}
+    end
+
     if DungeonOracle.Database and DungeonOracle.Database.SetActiveRun then
         DungeonOracle.Database.SetActiveRun(Tracker.state.active_run)
     end
@@ -84,6 +90,7 @@ local ROLE_HEALER = "HEALER"
 local ROLE_TANK = "TANK"
 local SHADOWFORM_SPELL_ID = 15473
 local RIGHTEOUS_FURY_SPELL_ID = 25780
+local ITEM_LINK_ID_PATTERN = "item:(%d+)"
 
 -- Produces a simple UUID-like identifier that is sufficient for run identity.
 local function createRunId()
@@ -165,6 +172,16 @@ local function getCurrentTrackedDungeonDefinition()
     return DungeonOracleData.dungeons[currentDungeon.id]
 end
 
+local function getTrackedBossIdsForLoot(itemId)
+    local dungeonDefinition = getCurrentTrackedDungeonDefinition()
+
+    if not dungeonDefinition or not dungeonDefinition.loot_to_bosses or not itemId then
+        return nil
+    end
+
+    return dungeonDefinition.loot_to_bosses[itemId]
+end
+
 local function getTrackedBossByNpcId(npcId)
     local dungeonDefinition = getCurrentTrackedDungeonDefinition()
     local boss
@@ -180,6 +197,62 @@ local function getTrackedBossByNpcId(npcId)
     end
 
     return nil
+end
+
+local function isBossPendingLootResolution(bossId)
+    local pendingBossId
+
+    for _, pendingBossId in ipairs(Tracker.state.pending_boss_loot_queue) do
+        if pendingBossId == bossId then
+            return true
+        end
+    end
+
+    return false
+end
+
+local function appendPendingBossLootResolution(bossId)
+    local activeRun = Tracker.state.active_run
+
+    if not activeRun or not bossId then
+        return false
+    end
+
+    activeRun.boss_loot = activeRun.boss_loot or {}
+
+    if activeRun.boss_loot[bossId] or isBossPendingLootResolution(bossId) then
+        return false
+    end
+
+    table.insert(Tracker.state.pending_boss_loot_queue, bossId)
+    persistActiveRun()
+    return true
+end
+
+local function removePendingBossLootResolution(bossId)
+    local index
+
+    for index = #Tracker.state.pending_boss_loot_queue, 1, -1 do
+        if Tracker.state.pending_boss_loot_queue[index] == bossId then
+            table.remove(Tracker.state.pending_boss_loot_queue, index)
+            persistActiveRun()
+            return true
+        end
+    end
+
+    return false
+end
+
+local function restorePendingBossLootQueueFromActiveRun()
+    if not Tracker.state then
+        return
+    end
+
+    if Tracker.state.active_run and Tracker.state.active_run.pending_boss_loot_queue then
+        Tracker.state.pending_boss_loot_queue = Tracker.state.active_run.pending_boss_loot_queue
+    else
+        Tracker.state.pending_boss_loot_queue = {}
+    end
 end
 
 -- Looks up the static dungeon definition for the current instance.
@@ -663,6 +736,7 @@ local function recordBossEngagementStart(bossId, bossName)
     end
 
     Tracker.state.active_boss_engagements[bossId] = time()
+    appendPendingBossLootResolution(bossId)
     printMessage(string.format("boss timer started for %s.", bossName or tostring(bossId)))
     return true
 end
@@ -690,6 +764,7 @@ local function recordBossEngagementEnd(bossId, bossName)
     })
 
     Tracker.state.active_boss_engagements[bossId] = nil
+    appendPendingBossLootResolution(bossId)
     persistActiveRun()
     printMessage(string.format("boss timer recorded for %s: %d seconds.", bossName or tostring(bossId), duration))
     return true
@@ -775,6 +850,86 @@ local function recordPartyDeath(deadPlayerName)
     return true
 end
 
+local function getItemIdFromLootMessage(message)
+    local itemId = message and string.match(message, ITEM_LINK_ID_PATTERN) or nil
+
+    return tonumber(itemId)
+end
+
+local function recordBossLoot(itemId)
+    local activeRun = Tracker.state.active_run
+    local bossIds
+    local resolvedBossId = nil
+    local queuedBossId
+    local bossId
+
+    if not activeRun or not itemId then
+        return false
+    end
+
+    bossIds = getTrackedBossIdsForLoot(itemId)
+    if not bossIds or #bossIds == 0 then
+        return false
+    end
+
+    activeRun.boss_loot = activeRun.boss_loot or {}
+
+    if #bossIds == 1 then
+        resolvedBossId = bossIds[1]
+    else
+        for _, queuedBossId in ipairs(Tracker.state.pending_boss_loot_queue) do
+            for _, bossId in ipairs(bossIds) do
+                if queuedBossId == bossId and not activeRun.boss_loot[bossId] then
+                    resolvedBossId = bossId
+                    break
+                end
+            end
+
+            if resolvedBossId then
+                break
+            end
+        end
+    end
+
+    if not resolvedBossId or activeRun.boss_loot[resolvedBossId] then
+        return false
+    end
+
+    activeRun.boss_loot[resolvedBossId] = itemId
+    removePendingBossLootResolution(resolvedBossId)
+    persistActiveRun()
+    printMessage(string.format("recorded boss loot %d for boss %d.", itemId, resolvedBossId))
+    return true
+end
+
+-- Before a run is archived, any bosses still waiting for loot resolution are
+-- written as -1 so the export clearly shows that no tracked loot was captured
+-- for that boss on this client.
+local function finalizePendingBossLoot()
+    local activeRun = Tracker.state.active_run
+    local queuedBossId
+    local changed = false
+
+    if not activeRun then
+        return false
+    end
+
+    activeRun.boss_loot = activeRun.boss_loot or {}
+
+    for _, queuedBossId in ipairs(Tracker.state.pending_boss_loot_queue) do
+        if activeRun.boss_loot[queuedBossId] == nil then
+            activeRun.boss_loot[queuedBossId] = -1
+            changed = true
+        end
+    end
+
+    if changed then
+        persistActiveRun()
+    end
+
+    return changed
+end
+
 -- Stores the active run in memory and persists the same state into the
 -- database layer so later rebuild steps can rely on one shared shape.
 local function setActiveRun(runId, dungeonName, startedAt, zoneId, party, hardcore)
@@ -789,11 +944,14 @@ local function setActiveRun(runId, dungeonName, startedAt, zoneId, party, hardco
         replacements = 0,
         deaths = {},
         boss_timer = {},
+        boss_loot = {},
+        pending_boss_loot_queue = {},
     }
 
     Tracker.state.last_group_size = #Tracker.state.active_run.party
     Tracker.state.last_replacement_signature = buildPartyNameSignature(Tracker.state.active_run.party)
     Tracker.state.active_boss_engagements = {}
+    Tracker.state.pending_boss_loot_queue = {}
     persistActiveRun()
 end
 
@@ -822,11 +980,14 @@ local function reactivateKnownRunByDungeon(dungeonName, zoneId)
         replacements = existingRun.replacements or 0,
         deaths = existingRun.deaths or {},
         boss_timer = existingRun.boss_timer or {},
+        boss_loot = existingRun.boss_loot or {},
+        pending_boss_loot_queue = existingRun.pending_boss_loot_queue or {},
     }
 
     Tracker.state.last_group_size = getTrackedGroupSize()
     Tracker.state.last_replacement_signature = buildPartyNameSignature(Tracker.state.active_run.party)
     Tracker.state.active_boss_engagements = {}
+    Tracker.state.pending_boss_loot_queue = existingRun.pending_boss_loot_queue or {}
     persistActiveRun()
     return true
 end
@@ -855,6 +1016,8 @@ local function transitionToNewRunForZoneShift()
     previousRunId = activeRun.run_id
     previousZoneId = activeRun.zone_id
 
+    finalizePendingBossLoot()
+
     if DungeonOracle.Database and DungeonOracle.Database.CompleteActiveRun then
         DungeonOracle.Database.CompleteActiveRun(time())
     elseif DungeonOracle.Database and DungeonOracle.Database.ClearActiveRun then
@@ -863,6 +1026,7 @@ local function transitionToNewRunForZoneShift()
 
     Tracker.state.active_run = nil
     Tracker.state.active_boss_engagements = {}
+    Tracker.state.pending_boss_loot_queue = {}
     printMessage(string.format(
         "completed run %s because %s changed from zone id %d to %d.",
         previousRunId or "-",
@@ -1012,6 +1176,8 @@ local function finalizeOutsideInstanceTimeout(timeoutToken)
 
     Tracker.state.outside_instance_token = nil
 
+    finalizePendingBossLoot()
+
     if DungeonOracle.Database and DungeonOracle.Database.CompleteActiveRun then
         DungeonOracle.Database.CompleteActiveRun(time())
     elseif DungeonOracle.Database and DungeonOracle.Database.ClearActiveRun then
@@ -1020,6 +1186,7 @@ local function finalizeOutsideInstanceTimeout(timeoutToken)
 
     Tracker.state.active_run = nil
     Tracker.state.active_boss_engagements = {}
+    Tracker.state.pending_boss_loot_queue = {}
     printMessage("previous run completed after being outside all instances for 30 seconds.")
 
     if DungeonOracle.UI and DungeonOracle.UI.HideTrackerWindow then
@@ -1093,6 +1260,28 @@ function Tracker.GetCurrentBossTimer()
     return nil
 end
 
+-- Public: returns the currently pending boss loot-resolution queue so the UI
+-- can show its live state.
+function Tracker.GetPendingBossQueue()
+    local queue = {}
+    local pendingBossId
+    local boss
+
+    if not Tracker.state or not Tracker.state.pending_boss_loot_queue then
+        return queue
+    end
+
+    for _, pendingBossId in ipairs(Tracker.state.pending_boss_loot_queue) do
+        boss = getTrackedBossByNpcId(pendingBossId)
+        queue[#queue + 1] = {
+            boss_id = pendingBossId,
+            boss_name = boss and boss.name or tostring(pendingBossId),
+        }
+    end
+
+    return queue
+end
+
 -- Completes the current active run when the player enters a different
 -- supported dungeon context. That includes either a different instance of the
 -- same dungeon or a completely different dungeon.
@@ -1110,6 +1299,8 @@ local function completeActiveRunForDungeonTransition()
 
     Tracker.state.outside_instance_token = nil
 
+    finalizePendingBossLoot()
+
     if DungeonOracle.Database and DungeonOracle.Database.CompleteActiveRun then
         DungeonOracle.Database.CompleteActiveRun(time())
     elseif DungeonOracle.Database and DungeonOracle.Database.ClearActiveRun then
@@ -1118,6 +1309,7 @@ local function completeActiveRunForDungeonTransition()
 
     Tracker.state.active_run = nil
     Tracker.state.active_boss_engagements = {}
+    Tracker.state.pending_boss_loot_queue = {}
     printMessage(string.format("previous run completed because %s was entered.", currentDungeon.name))
 
     return true
@@ -1137,6 +1329,7 @@ local function updateCurrentDungeon()
         }
         Tracker.state.last_zone_npc_id = nil
         Tracker.state.active_boss_engagements = {}
+        Tracker.state.pending_boss_loot_queue = {}
         clearOutsideInstanceTimeout()
 
         if DungeonOracle.UI and DungeonOracle.UI.ResetTrackerLogs then
@@ -1182,6 +1375,7 @@ function Tracker.Initialize(eventFrame)
         persistedActiveRun = DungeonOracle.Database.GetActiveRun()
         if persistedActiveRun then
             Tracker.state.active_run = persistedActiveRun
+            restorePendingBossLootQueueFromActiveRun()
         end
     end
 
@@ -1192,6 +1386,8 @@ function Tracker.Initialize(eventFrame)
             if not Tracker.state.current_dungeon.zone_id and Tracker.state.active_run.zone_id then
                 Tracker.state.current_dungeon.zone_id = Tracker.state.active_run.zone_id
             end
+
+            restorePendingBossLootQueueFromActiveRun()
 
             if DungeonOracle.UI and DungeonOracle.UI.ShowTrackerWindow then
                 DungeonOracle.UI.ShowTrackerWindow()
@@ -1221,6 +1417,9 @@ end
 function Tracker.HandleEvent(event, ...)
     if event == "PLAYER_ENTERING_WORLD" or event == "ZONE_CHANGED_NEW_AREA" then
         updateCurrentDungeon()
+        if Tracker.state.active_run then
+            restorePendingBossLootQueueFromActiveRun()
+        end
         completeActiveRunForDungeonTransition()
     elseif event == "GROUP_ROSTER_UPDATE" then
         handleGroupRosterUpdate()
@@ -1232,6 +1431,7 @@ function Tracker.HandleEvent(event, ...)
     elseif event == "PLAYER_ALIVE" or event == "PLAYER_UNGHOST" then
         if Tracker.state.active_run then
             updateCurrentDungeon()
+            restorePendingBossLootQueueFromActiveRun()
 
             if not Tracker.state.current_dungeon and not Tracker.state.outside_instance_token and not isPlayerDeadOrGhost() then
                 beginOutsideInstanceTimeout()
@@ -1254,6 +1454,9 @@ function Tracker.HandleEvent(event, ...)
                 resolveRunForCurrentDungeon()
             end
         end
+    elseif event == "CHAT_MSG_LOOT" then
+        local lootMessage = ...
+        recordBossLoot(getItemIdFromLootMessage(lootMessage))
     elseif event == "COMBAT_LOG_EVENT_UNFILTERED" then
         local _, subEvent, _, sourceGUID, _, _, _, destGUID, destName = CombatLogGetCurrentEventInfo()
         local zoneId
