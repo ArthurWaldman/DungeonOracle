@@ -1639,26 +1639,6 @@ end
 
 -- Public: returns the currently pending boss loot-resolution queue so the UI
 -- can show its live state.
-function Tracker.GetPendingBossQueue()
-    local queue = {}
-    local pendingBossId
-    local boss
-
-    if not Tracker.state or not Tracker.state.pending_boss_loot_queue then
-        return queue
-    end
-
-    for _, pendingBossId in ipairs(Tracker.state.pending_boss_loot_queue) do
-        boss = getTrackedBossByNpcId(pendingBossId)
-        queue[#queue + 1] = {
-            boss_id = pendingBossId,
-            boss_name = boss and boss.name or tostring(pendingBossId),
-        }
-    end
-
-    return queue
-end
-
 function Tracker.GetRecorderName()
     return getRecorderName()
 end

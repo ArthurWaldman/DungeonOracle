@@ -17,20 +17,21 @@ local UI = DungeonOracle.UI
 -- Window sizing is intentionally modest so the addon reads like a utility
 -- panel instead of a full-screen interface.
 local WINDOW_WIDTH = 460
-local WINDOW_HEIGHT = 340
+local WINDOW_HEIGHT = 404
 local MINIMAP_RADIUS = 80
 local MINIMAP_ICON = "Interface\\Icons\\INV_Misc_Note_01"
 local UPLOAD_URL = "https://www.dropbox.com/request/2okeud4m0vplo6e8nsmk"
 local PATH_FONT_SIZE = 9
-local TRACKER_WINDOW_WIDTH = 360
-local TRACKER_WINDOW_HEIGHT = 224
+local TRACKER_WINDOW_WIDTH = 285
+local TRACKER_WINDOW_HEIGHT = 156
 local TRACKER_LOG_LINE_LIMIT = 8
 
 -- Tab definitions drive both the clickable tab buttons and the associated
 -- content panes. New tabs should generally be added here first.
 local TAB_DEFINITIONS = {
-    { id = 1, text = "Settings" },
+    { id = 1, text = "My Data" },
     { id = 2, text = "Upload Instructions" },
+    { id = 3, text = "Settings" },
 }
 
 -- Settings are read through small helper functions so UI code never reaches
@@ -71,17 +72,112 @@ local function getRecordCount()
     return 0
 end
 
+local function getStoredRuns()
+    if DungeonOracle.Database and DungeonOracle.Database.GetRecords then
+        return DungeonOracle.Database.GetRecords()
+    end
+
+    return {}
+end
+
+local function getTrackerWindowPositionSetting()
+    if DungeonOracle.Database and DungeonOracle.Database.GetSetting then
+        return DungeonOracle.Database.GetSetting("tracker_window_position")
+    end
+
+    return nil
+end
+
+local function setTrackerWindowPositionSetting(position)
+    if DungeonOracle.Database and DungeonOracle.Database.SetSetting then
+        DungeonOracle.Database.SetSetting("tracker_window_position", position)
+    end
+end
+
 -- Anchors the small tracker window just above the primary chat frame when
 -- that frame exists. A conservative fallback keeps the window readable even if
 -- chat has been replaced or is unavailable during initialization.
 local function positionTrackerWindow(frame)
+    local savedPosition = getTrackerWindowPositionSetting()
+
     frame:ClearAllPoints()
+
+    if savedPosition and savedPosition.left and savedPosition.bottom then
+        frame:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", savedPosition.left, savedPosition.bottom)
+        UI.trackerHasCustomPosition = true
+        return
+    end
 
     if ChatFrame1 then
         frame:SetPoint("BOTTOMLEFT", ChatFrame1, "TOPLEFT", 0, 22)
     else
         frame:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", 32, 220)
     end
+end
+
+local function ensureTrackerWindowPosition(frame)
+    if not frame or UI.trackerHasCustomPosition then
+        return
+    end
+
+    positionTrackerWindow(frame)
+end
+
+local function getColoredLootCounterText(greenDrops, blueDrops, purpleDrops)
+    return string.format(
+        "Uncommon: |cff1eff00%d|r | Rare: |cff0070dd%d|r | Epic: |cffa335ee%d|r",
+        tonumber(greenDrops) or 0,
+        tonumber(blueDrops) or 0,
+        tonumber(purpleDrops) or 0
+    )
+end
+
+local function normalizeUiDungeonName(name)
+    if not name then
+        return nil
+    end
+
+    name = string.lower(name)
+    name = string.gsub(name, "^the%s+", "")
+    name = string.gsub(name, "[^%w]", "")
+
+    return name
+end
+
+local function formatDurationClock(totalSeconds)
+    local hours
+    local minutes
+    local seconds
+
+    totalSeconds = math.max(0, tonumber(totalSeconds) or 0)
+    hours = math.floor(totalSeconds / 3600)
+    minutes = math.floor(math.fmod(totalSeconds, 3600) / 60)
+    seconds = math.fmod(totalSeconds, 60)
+
+    return string.format("%02d:%02d:%02d", hours, minutes, seconds)
+end
+
+local function getBossNameForRun(dungeonName, bossId)
+    local dungeonDefinition
+    local boss
+
+    if not dungeonName or not bossId or not DungeonOracleData or not DungeonOracleData.dungeons then
+        return tostring(bossId or "-")
+    end
+
+    for _, dungeonDefinition in pairs(DungeonOracleData.dungeons) do
+        if normalizeUiDungeonName(dungeonDefinition.name) == normalizeUiDungeonName(dungeonName) then
+            if dungeonDefinition.bosses then
+                for _, boss in ipairs(dungeonDefinition.bosses) do
+                    if boss.id == bossId then
+                        return boss.name or tostring(bossId)
+                    end
+                end
+            end
+        end
+    end
+
+    return tostring(bossId)
 end
 
 -- Creates the centered title text shown at the top of the main window.
@@ -96,7 +192,7 @@ end
 local function createContentPane(parent)
     local pane = CreateFrame("Frame", nil, parent, "InsetFrameTemplate3")
     pane:SetPoint("TOPLEFT", 16, -88)
-    pane:SetPoint("BOTTOMRIGHT", -16, 16)
+    pane:SetPoint("BOTTOMRIGHT", -16, 20)
     pane:Hide()
 
     return pane
@@ -125,6 +221,22 @@ local function populateSettingsPane(pane)
     UI.showTrackerWindowCheckbox = trackerCheckbox
 end
 
+local function populateMyDataPane(pane)
+    local scrollFrame = CreateFrame("ScrollFrame", nil, pane, "UIPanelScrollFrameTemplate")
+    local content = CreateFrame("Frame", nil, scrollFrame)
+
+    scrollFrame:SetPoint("TOPLEFT", 12, -12)
+    scrollFrame:SetPoint("BOTTOMRIGHT", -28, 12)
+
+    content:SetWidth(WINDOW_WIDTH - 90)
+    content:SetHeight(1)
+    scrollFrame:SetScrollChild(content)
+
+    UI.myDataScrollFrame = scrollFrame
+    UI.myDataContent = content
+    UI.myDataRows = {}
+end
+
 -- The upload pane is informational. It explains manual export and gives the
 -- player a way to clear local records after an upload is complete.
 local function populateUploadInstructionsPane(pane)
@@ -135,7 +247,7 @@ local function populateUploadInstructionsPane(pane)
     intro:SetJustifyV("TOP")
     intro:SetSpacing(3)
     intro:SetText(
-        "Dungeon Oracle cannot automatically upload your dungeon run data to our database. "
+        "Dungeon Oracle cannot automatically upload your dungeon data to our database. "
             .. "If you would like to contribute data to this project, a manual upload is required.\n\n"
             .. "Upload your file at the following URL:"
     )
@@ -167,9 +279,7 @@ local function populateUploadInstructionsPane(pane)
     body:SetJustifyV("TOP")
     body:SetSpacing(3)
     body:SetText(
-        "Dropbox may ask for a name and email address before the upload begins. "
-            .. "You may enter placeholder information if you prefer; it does not need to be real.\n\n"
-            .. "When prompted to choose a file, navigate to the drive where World of Warcraft is installed, then open:\n"
+        "When prompted to choose a file, navigate to the drive where World of Warcraft is installed, then open:\n"
     )
 
     local pathText = pane:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
@@ -196,6 +306,17 @@ local function populateUploadInstructionsPane(pane)
     fileName:SetJustifyV("TOP")
     fileName:SetFont(STANDARD_TEXT_FONT, PATH_FONT_SIZE, "")
     fileName:SetText("DungeonOracle.lua")
+
+    local submissionNote = pane:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    submissionNote:SetPoint("TOPLEFT", fileName, "BOTTOMLEFT", 0, -10)
+    submissionNote:SetPoint("RIGHT", pane, "RIGHT", -16, 0)
+    submissionNote:SetJustifyH("LEFT")
+    submissionNote:SetJustifyV("TOP")
+    submissionNote:SetSpacing(3)
+    submissionNote:SetText(
+        "Dropbox may ask for a name and email address before the upload begins. "
+            .. "You may enter placeholder information if you prefer; it does not need to be real."
+    )
 
     local clearLabel = pane:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     clearLabel:SetPoint("BOTTOMLEFT", 16, 18)
@@ -232,6 +353,9 @@ local function createTrackerWindow()
     frame:SetSize(TRACKER_WINDOW_WIDTH, TRACKER_WINDOW_HEIGHT)
     frame:SetFrameStrata("MEDIUM")
     frame:SetClampedToScreen(true)
+    frame:SetMovable(true)
+    frame:EnableMouse(true)
+    frame:RegisterForDrag("LeftButton")
     frame:SetBackdrop({
         bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
         edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
@@ -242,21 +366,45 @@ local function createTrackerWindow()
     })
     frame:SetBackdropColor(0.05, 0.05, 0.05, 0.9)
     frame:Hide()
+    frame:SetScript("OnDragStart", function(self)
+        self:StartMoving()
+    end)
+    frame:SetScript("OnDragStop", function(self)
+        local left = self:GetLeft()
+        local bottom = self:GetBottom()
+
+        self:StopMovingOrSizing()
+        if left and bottom then
+            UI.trackerHasCustomPosition = true
+            setTrackerWindowPositionSetting({
+                left = math.floor(left + 0.5),
+                bottom = math.floor(bottom + 0.5),
+            })
+        end
+    end)
 
     local title = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     title:SetPoint("TOPLEFT", 10, -8)
     title:SetText("Dungeon Oracle Tracker")
 
+    local runtimeText = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    runtimeText:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -8)
+    runtimeText:SetText("Runtime: Inactive")
+
     local timerText = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    timerText:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -8)
+    timerText:SetPoint("TOPLEFT", runtimeText, "BOTTOMLEFT", 0, -6)
     timerText:SetText("Reset Timer: Inactive")
 
     local bossTimerText = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     bossTimerText:SetPoint("TOPLEFT", timerText, "BOTTOMLEFT", 0, -6)
     bossTimerText:SetText("Boss Timer: Inactive")
 
+    local lastBossText = frame:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+    lastBossText:SetPoint("TOPLEFT", bossTimerText, "BOTTOMLEFT", 0, -4)
+    lastBossText:SetText("Last Boss: Inactive")
+
     local zoneIdText = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    zoneIdText:SetPoint("TOPLEFT", bossTimerText, "BOTTOMLEFT", 0, -6)
+    zoneIdText:SetPoint("TOPLEFT", lastBossText, "BOTTOMLEFT", 0, -8)
     zoneIdText:SetText("Zone ID: Inactive")
 
     local recorderText = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
@@ -269,30 +417,28 @@ local function createTrackerWindow()
 
     local lootCounterText = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     lootCounterText:SetPoint("TOPLEFT", runIdText, "BOTTOMLEFT", 0, -6)
-    lootCounterText:SetText("Green: 0 | Blue: 0 | Purple: 0")
-
-    local bossQueueText = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    bossQueueText:SetPoint("TOPLEFT", lootCounterText, "BOTTOMLEFT", 0, -6)
-    bossQueueText:SetText("Boss Queue: Inactive")
+    lootCounterText:SetText(getColoredLootCounterText(0, 0, 0))
 
     local logText = frame:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-    logText:SetPoint("TOPLEFT", bossQueueText, "BOTTOMLEFT", 0, -8)
+    logText:SetPoint("TOPLEFT", lootCounterText, "BOTTOMLEFT", 0, -8)
     logText:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -10, 10)
     logText:SetJustifyH("LEFT")
     logText:SetJustifyV("TOP")
     logText:SetSpacing(2)
     logText:SetText("No loot detected")
+    logText:Hide()
 
-    positionTrackerWindow(frame)
+    ensureTrackerWindowPosition(frame)
 
     UI.trackerFrame = frame
+    UI.trackerRuntimeText = runtimeText
     UI.trackerTimerText = timerText
     UI.trackerBossTimerText = bossTimerText
+    UI.trackerLastBossText = lastBossText
     UI.trackerZoneIdText = zoneIdText
     UI.trackerRecorderText = recorderText
     UI.trackerRunIdText = runIdText
     UI.trackerLootCounterText = lootCounterText
-    UI.trackerBossQueueText = bossQueueText
     UI.trackerLogText = logText
     UI.trackerLogLines = { "No loot detected" }
 
@@ -300,10 +446,13 @@ local function createTrackerWindow()
         local activeRun
         local currentDungeon
         local remainingSeconds
+        local runtimeSeconds
+        local runtimeHours
+        local runtimeMinutes
+        local runtimeRemainderSeconds
         local bossTimer
-        local pendingBossQueue
-        local pendingBossNames
-        local queueEntry
+        local lastBossTimerEntry
+        local lastBossName
         local zoneId
         local recorderName
 
@@ -331,14 +480,6 @@ local function createTrackerWindow()
             and DungeonOracle.Tracker.GetCurrentBossTimer
             and DungeonOracle.Tracker.GetCurrentBossTimer()
 
-        if UI.trackerBossTimerText then
-            if bossTimer then
-                UI.trackerBossTimerText:SetText(string.format("Boss Timer: %s %ds", bossTimer.boss_name or "-", bossTimer.duration or 0))
-            else
-                UI.trackerBossTimerText:SetText("Boss Timer: Inactive")
-            end
-        end
-
         activeRun = DungeonOracle
             and DungeonOracle.Tracker
             and DungeonOracle.Tracker.state
@@ -348,6 +489,50 @@ local function createTrackerWindow()
             and DungeonOracle.Tracker.state
             and DungeonOracle.Tracker.state.current_dungeon
         zoneId = (activeRun and activeRun.zone_id) or (currentDungeon and currentDungeon.zone_id) or nil
+
+        if UI.trackerBossTimerText then
+            if bossTimer then
+                UI.trackerBossTimerText:SetText(string.format("Boss Timer: %s %ds", bossTimer.boss_name or "-", bossTimer.duration or 0))
+            else
+                UI.trackerBossTimerText:SetText("Boss Timer: Inactive")
+            end
+        end
+
+        if UI.trackerLastBossText then
+            if activeRun and activeRun.boss_timer and #activeRun.boss_timer > 0 then
+                lastBossTimerEntry = activeRun.boss_timer[#activeRun.boss_timer]
+                lastBossName = getBossNameForRun(activeRun.dungeon_name, lastBossTimerEntry.boss_id)
+                UI.trackerLastBossText:SetText(string.format(
+                    "Last Boss: %s - %s",
+                    lastBossName,
+                    formatDurationClock(lastBossTimerEntry.duration)
+                ))
+            else
+                UI.trackerLastBossText:SetText("Last Boss: Inactive")
+            end
+        end
+
+        if UI.trackerRuntimeText then
+            if activeRun and activeRun.started_at then
+                if activeRun.outside_instance_started_at then
+                    runtimeSeconds = math.max(0, activeRun.outside_instance_started_at - activeRun.started_at)
+                else
+                    runtimeSeconds = math.max(0, time() - activeRun.started_at)
+                end
+
+                runtimeHours = math.floor(runtimeSeconds / 3600)
+                runtimeMinutes = math.floor(math.fmod(runtimeSeconds, 3600) / 60)
+                runtimeRemainderSeconds = math.fmod(runtimeSeconds, 60)
+                UI.trackerRuntimeText:SetText(string.format(
+                    "Runtime: %02d:%02d:%02d",
+                    runtimeHours,
+                    runtimeMinutes,
+                    runtimeRemainderSeconds
+                ))
+            else
+                UI.trackerRuntimeText:SetText("Runtime: Inactive")
+            end
+        end
 
         if UI.trackerRunIdText then
             if activeRun and activeRun.run_id and activeRun.run_id ~= "" then
@@ -380,33 +565,13 @@ local function createTrackerWindow()
 
         if UI.trackerLootCounterText then
             if activeRun then
-                UI.trackerLootCounterText:SetText(string.format(
-                    "Green: %d | Blue: %d | Purple: %d",
+                UI.trackerLootCounterText:SetText(getColoredLootCounterText(
                     tonumber(activeRun.green_drops) or 0,
                     tonumber(activeRun.blue_drops) or 0,
                     tonumber(activeRun.purple_drops) or 0
                 ))
             else
-                UI.trackerLootCounterText:SetText("Green: 0 | Blue: 0 | Purple: 0")
-            end
-        end
-
-        pendingBossQueue = DungeonOracle
-            and DungeonOracle.Tracker
-            and DungeonOracle.Tracker.GetPendingBossQueue
-            and DungeonOracle.Tracker.GetPendingBossQueue()
-
-        if UI.trackerBossQueueText then
-            if pendingBossQueue and #pendingBossQueue > 0 then
-                pendingBossNames = {}
-
-                for _, queueEntry in ipairs(pendingBossQueue) do
-                    pendingBossNames[#pendingBossNames + 1] = queueEntry.boss_name or tostring(queueEntry.boss_id)
-                end
-
-                UI.trackerBossQueueText:SetText(string.format("Boss Queue: %s", table.concat(pendingBossNames, ", ")))
-            else
-                UI.trackerBossQueueText:SetText("Boss Queue: Inactive")
+                UI.trackerLootCounterText:SetText(getColoredLootCounterText(0, 0, 0))
             end
         end
     end)
@@ -424,6 +589,436 @@ function UI.RefreshUploadInstructionsPane()
     if UI.uploadClearButton then
         UI.uploadClearButton:SetEnabled(recordCount > 0)
     end
+end
+
+function UI.RefreshMyDataPane()
+    local activeRun = DungeonOracle
+        and DungeonOracle.Database
+        and DungeonOracle.Database.GetActiveRun
+        and DungeonOracle.Database.GetActiveRun()
+    local records = getStoredRuns()
+    local index
+    local record
+    local rowIndex = 0
+    local rowTop = -6
+    local rowHeight = 20
+    local columnRunIdX = 8
+    local columnZoneIdX = 165
+    local columnDungeonX = 240
+    local columnRunIdWidth = 145
+    local columnZoneIdWidth = 60
+    local columnDungeonWidth = 118
+    local visibleRows = 0
+
+    local function normalizeDungeonName(name)
+        if not name then
+            return nil
+        end
+
+        name = string.lower(name)
+        name = string.gsub(name, "^the%s+", "")
+        name = string.gsub(name, "[^%w]", "")
+        return name
+    end
+
+    local function getPartySize(runRecord)
+        if type(runRecord) ~= "table" or type(runRecord.party) ~= "table" then
+            return 0
+        end
+
+        return #runRecord.party
+    end
+
+    local function getDeathCount(runRecord)
+        if type(runRecord) ~= "table" or type(runRecord.deaths) ~= "table" then
+            return 0
+        end
+
+        return #runRecord.deaths
+    end
+
+    local function formatTimestamp(timestamp)
+        if not timestamp then
+            return "-"
+        end
+
+        return date("%Y-%m-%d %H:%M:%S", timestamp)
+    end
+
+    local function getRuntimeText(runRecord)
+        local totalSeconds
+        local hours
+        local minutes
+        local seconds
+
+        if type(runRecord) ~= "table" or not runRecord.started_at then
+            return "-"
+        end
+
+        if runRecord.outside_instance_started_at then
+            totalSeconds = math.max(0, runRecord.outside_instance_started_at - runRecord.started_at)
+        elseif runRecord.ended_at then
+            totalSeconds = math.max(0, runRecord.ended_at - runRecord.started_at)
+        else
+            totalSeconds = math.max(0, time() - runRecord.started_at)
+        end
+
+        hours = math.floor(totalSeconds / 3600)
+        minutes = math.floor(math.fmod(totalSeconds, 3600) / 60)
+        seconds = math.fmod(totalSeconds, 60)
+
+        return string.format("%02d:%02d:%02d", hours, minutes, seconds)
+    end
+
+    local function getClassColor(classFilename)
+        local classColors = CUSTOM_CLASS_COLORS or RAID_CLASS_COLORS
+
+        if classColors and classFilename and classColors[classFilename] then
+            return classColors[classFilename]
+        end
+
+        return { r = 1, g = 1, b = 1 }
+    end
+
+    local function getClassColoredText(classFilename)
+        local color = getClassColor(classFilename)
+        local label = classFilename or "UNKNOWN"
+
+        return string.format("|cff%02x%02x%02x%s|r", color.r * 255, color.g * 255, color.b * 255, label)
+    end
+
+    local function getPartyCompositionText(runRecord)
+        local classes = {}
+        local index
+        local member
+
+        if type(runRecord) ~= "table" or type(runRecord.party) ~= "table" then
+            return "-"
+        end
+
+        for index, member in ipairs(runRecord.party) do
+            classes[index] = getClassColoredText(member.class)
+        end
+
+        if #classes == 0 then
+            return "-"
+        end
+
+        return table.concat(classes, ", ")
+    end
+
+    local function getBossDefinitionById(runRecord, bossId)
+        local dungeonDefinition
+        local boss
+
+        if not runRecord or not bossId or not DungeonOracleData or not DungeonOracleData.dungeons then
+            return nil
+        end
+
+        for _, dungeonDefinition in pairs(DungeonOracleData.dungeons) do
+            if normalizeDungeonName(dungeonDefinition.name) == normalizeDungeonName(runRecord.dungeon_name) then
+                if dungeonDefinition.bosses then
+                    for _, boss in ipairs(dungeonDefinition.bosses) do
+                        if boss.id == bossId then
+                            return boss
+                        end
+                    end
+                end
+
+                return nil
+            end
+        end
+
+        return nil
+    end
+
+    local function getBossBeatenCount(runRecord)
+        if type(runRecord) ~= "table" or type(runRecord.boss_timer) ~= "table" then
+            return 0
+        end
+
+        return #runRecord.boss_timer
+    end
+
+    local function getBossLootLines(runRecord)
+        local lines = {}
+        local bossId
+        local lootId
+        local bossDefinition
+        local bossName
+        local lootName
+
+        if type(runRecord) ~= "table" or type(runRecord.boss_loot) ~= "table" then
+            return lines
+        end
+
+        for bossId, lootId in pairs(runRecord.boss_loot) do
+            bossDefinition = getBossDefinitionById(runRecord, tonumber(bossId))
+            bossName = bossDefinition and bossDefinition.name or tostring(bossId)
+
+            if lootId == -1 then
+                lootName = "No tracked loot"
+            else
+                lootName = GetItemInfo and GetItemInfo(lootId) or nil
+                lootName = lootName or string.format("Item %s", tostring(lootId))
+            end
+
+            lines[#lines + 1] = string.format("%s - %s", bossName, lootName)
+        end
+
+        table.sort(lines)
+        return lines
+    end
+
+    local function getNonBossLootText(runRecord)
+        local greenDrops = type(runRecord) == "table" and (runRecord.green_drops or 0) or 0
+        local blueDrops = type(runRecord) == "table" and (runRecord.blue_drops or 0) or 0
+        local purpleDrops = type(runRecord) == "table" and (runRecord.purple_drops or 0) or 0
+
+        return string.format(
+            "|cff1eff00%d|r | |cff0070dd%d|r | |cffa335ee%d|r",
+            greenDrops,
+            blueDrops,
+            purpleDrops
+        )
+    end
+
+    local function populateRunTooltip(row, runRecord)
+        local bossLootLines
+        local bossLootLine
+
+        if not row or not runRecord then
+            return
+        end
+
+        GameTooltip:SetOwner(row, "ANCHOR_RIGHT")
+        GameTooltip:ClearLines()
+        GameTooltip:AddLine(runRecord.dungeon_name or "Dungeon Run", 1, 0.82, 0)
+        GameTooltip:AddDoubleLine("Run ID", tostring(runRecord.run_id or "-"), 1, 1, 1, 1, 1, 1)
+        GameTooltip:AddDoubleLine("Zone ID", runRecord.zone_id and tostring(runRecord.zone_id) or "-", 1, 1, 1, 1, 1, 1)
+        GameTooltip:AddDoubleLine("Started", formatTimestamp(runRecord.started_at), 1, 1, 1, 1, 1, 1)
+
+        if runRecord.ended_at then
+            GameTooltip:AddDoubleLine("Ended", formatTimestamp(runRecord.ended_at), 1, 1, 1, 1, 1, 1)
+        else
+            GameTooltip:AddDoubleLine("Ended", "Active", 1, 1, 1, 0.5, 1, 0.5)
+        end
+        GameTooltip:AddDoubleLine("Runtime", getRuntimeText(runRecord), 1, 1, 1, 1, 1, 1)
+
+        GameTooltip:AddLine(" ")
+        GameTooltip:AddLine("Party Composition:", 1, 0.82, 0)
+        GameTooltip:AddLine(getPartyCompositionText(runRecord), 1, 1, 1, true)
+
+        GameTooltip:AddLine(" ")
+        GameTooltip:AddDoubleLine("Number of Deaths", tostring(getDeathCount(runRecord)), 1, 1, 1, 1, 1, 1)
+        GameTooltip:AddDoubleLine(
+            "First Death",
+            runRecord.first_death and getClassColoredText(runRecord.first_death.class) or "-",
+            1,
+            1,
+            1,
+            1,
+            1,
+            1
+        )
+        GameTooltip:AddDoubleLine("Bosses Beaten", tostring(getBossBeatenCount(runRecord)), 1, 1, 1, 1, 1, 1)
+
+        GameTooltip:AddLine(" ")
+        GameTooltip:AddLine("Boss Loot:", 1, 0.82, 0)
+        if type(runRecord.boss_loot) == "table" and next(runRecord.boss_loot) then
+            bossLootLines = getBossLootLines(runRecord)
+
+            for _, bossLootLine in ipairs(bossLootLines) do
+                GameTooltip:AddLine(bossLootLine, 1, 1, 1, true)
+            end
+        else
+            GameTooltip:AddLine("-", 1, 1, 1)
+        end
+
+        GameTooltip:AddLine(" ")
+        GameTooltip:AddDoubleLine("Other Loot:", getNonBossLootText(runRecord), 1, 1, 1, 1, 1, 1)
+        GameTooltip:Show()
+    end
+
+    local function ensureRow(rowNumber)
+        local row = UI.myDataRows[rowNumber]
+
+        if row then
+            return row
+        end
+
+        row = CreateFrame("Frame", nil, UI.myDataContent)
+        row:SetHeight(rowHeight)
+
+        row.left = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+        row.left:SetPoint("TOPLEFT", columnRunIdX, 0)
+        row.left:SetWidth(columnRunIdWidth)
+        row.left:SetJustifyH("LEFT")
+        row.left:SetWordWrap(false)
+
+        row.middle = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+        row.middle:SetPoint("TOPLEFT", columnZoneIdX, 0)
+        row.middle:SetWidth(columnZoneIdWidth)
+        row.middle:SetJustifyH("LEFT")
+        row.middle:SetWordWrap(false)
+
+        row.right = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+        row.right:SetPoint("TOPLEFT", columnDungeonX, 0)
+        row.right:SetWidth(columnDungeonWidth)
+        row.right:SetJustifyH("LEFT")
+        row.right:SetWordWrap(false)
+
+        row.separator = row:CreateTexture(nil, "ARTWORK")
+        row.separator:SetHeight(1)
+        row.separator:SetPoint("TOPLEFT", 8, -15)
+        row.separator:SetPoint("TOPRIGHT", -12, -15)
+        row.separator:SetColorTexture(1, 0.82, 0, 0.85)
+        row.separator:Hide()
+
+        row:SetScript("OnEnter", function(self)
+            local runRecord = self.runRecord
+
+            if not runRecord then
+                return
+            end
+
+            self.tooltipElapsed = 0
+            populateRunTooltip(self, runRecord)
+        end)
+
+        row:SetScript("OnLeave", function(self)
+            self.tooltipElapsed = 0
+            if self.runRecord then
+                GameTooltip:Hide()
+            end
+        end)
+
+        row:SetScript("OnUpdate", function(self, elapsed)
+            if not self.runRecord or self.runRecord.ended_at or not GameTooltip:IsOwned(self) then
+                return
+            end
+
+            self.tooltipElapsed = (self.tooltipElapsed or 0) + elapsed
+            if self.tooltipElapsed < 0.2 then
+                return
+            end
+
+            self.tooltipElapsed = 0
+            populateRunTooltip(self, self.runRecord)
+        end)
+
+        UI.myDataRows[rowNumber] = row
+        return row
+    end
+
+    local function setRow(rowNumber, leftText, middleText, rightText, fontObject, showSeparator, runRecord)
+        local row = ensureRow(rowNumber)
+
+        row:ClearAllPoints()
+        row:SetPoint("TOPLEFT", UI.myDataContent, "TOPLEFT", 0, rowTop - ((rowNumber - 1) * rowHeight))
+        row:SetPoint("TOPRIGHT", UI.myDataContent, "TOPRIGHT", 0, rowTop - ((rowNumber - 1) * rowHeight))
+
+        row.left:SetFontObject(fontObject or "GameFontNormalSmall")
+        row.middle:SetFontObject(fontObject or "GameFontNormalSmall")
+        row.right:SetFontObject(fontObject or "GameFontNormalSmall")
+
+        if (not middleText or middleText == "") and (not rightText or rightText == "") then
+            row.left:SetWidth((UI.myDataContent:GetWidth() or 0) - 20)
+        else
+            row.left:SetWidth(columnRunIdWidth)
+        end
+        row.middle:SetWidth(columnZoneIdWidth)
+        row.right:SetWidth(columnDungeonWidth)
+
+        row.left:SetText(leftText or "")
+        row.middle:SetText(middleText or "")
+        row.right:SetText(rightText or "")
+        row.runRecord = runRecord
+        if showSeparator then
+            row.separator:Show()
+        else
+            row.separator:Hide()
+        end
+        row:Show()
+        visibleRows = rowNumber
+    end
+
+    local function addSectionTitle(titleText)
+        rowIndex = rowIndex + 1
+        setRow(rowIndex, titleText, "", "", "GameFontHighlight", false)
+    end
+
+    local function addSectionDivider()
+        rowIndex = rowIndex + 1
+        setRow(rowIndex, "", "", "", "GameFontNormalSmall", true)
+    end
+
+    local function addSectionNote(noteText, showSeparator)
+        rowIndex = rowIndex + 1
+        setRow(rowIndex, noteText, "", "", "GameFontDisableSmall", showSeparator)
+    end
+
+    local function addHeaderRow()
+        rowIndex = rowIndex + 1
+        setRow(rowIndex, "Run ID", "Zone ID", "Dungeon Name", "GameFontNormalSmall", false)
+    end
+
+    local function addRunDataRow(runRecord)
+        rowIndex = rowIndex + 1
+        setRow(
+            rowIndex,
+            tostring(runRecord.run_id or "-"),
+            runRecord.zone_id and tostring(runRecord.zone_id) or "-",
+            tostring(runRecord.dungeon_name or "-"),
+            "GameFontHighlightSmall",
+            false,
+            runRecord
+        )
+    end
+
+    local function addSpacer()
+        rowIndex = rowIndex + 1
+        setRow(rowIndex, "", "", "", "GameFontNormalSmall", false)
+    end
+
+    if not UI.myDataContent or not UI.myDataRows then
+        return
+    end
+
+    if activeRun and activeRun.run_id and activeRun.run_id ~= "" then
+        addSectionTitle("Active Run")
+        addSectionDivider()
+        addHeaderRow()
+        addRunDataRow(activeRun)
+        addSpacer()
+    end
+
+    if #records > 0 then
+        addSectionTitle(string.format("Completed Runs - %d", #records))
+        if #records >= 5 then
+            addSectionNote("Please consider uploading your data", true)
+        else
+            addSectionDivider()
+        end
+        addHeaderRow()
+
+        for index = #records, 1, -1 do
+            record = records[index]
+            if record and record.run_id and record.run_id ~= "" then
+                addRunDataRow(record)
+            end
+        end
+    end
+
+    if rowIndex == 0 then
+        addSectionTitle("No run data recorded yet.")
+    end
+
+    for index = visibleRows + 1, #UI.myDataRows do
+        UI.myDataRows[index]:Hide()
+    end
+
+    UI.myDataContent:SetHeight(math.max((visibleRows * rowHeight) + 12, 1))
 end
 
 -- Public: replaces the visible tracker log buffer with the supplied lines.
@@ -494,7 +1089,7 @@ function UI.SetTrackerWindowVisible(isVisible)
     end
 
     if shouldShow and hasActiveRun then
-        positionTrackerWindow(UI.trackerFrame)
+        ensureTrackerWindowPosition(UI.trackerFrame)
         UI.trackerFrame:Show()
     else
         UI.trackerFrame:Hide()
@@ -507,7 +1102,7 @@ function UI.ShowTrackerWindow()
         return
     end
 
-    positionTrackerWindow(UI.trackerFrame)
+    ensureTrackerWindowPosition(UI.trackerFrame)
     UI.trackerFrame:Show()
 end
 
@@ -530,6 +1125,12 @@ local function selectTab(tabIndex)
             PanelTemplates_DeselectTab(tab)
             UI.contentPanes[index]:Hide()
         end
+    end
+
+    if tabIndex == 1 then
+        UI.RefreshMyDataPane()
+    elseif tabIndex == 2 then
+        UI.RefreshUploadInstructionsPane()
     end
 end
 
@@ -578,8 +1179,9 @@ local function createMainWindow()
         UI.contentPanes[index] = createContentPane(frame)
     end
 
-    populateSettingsPane(UI.contentPanes[1])
+    populateMyDataPane(UI.contentPanes[1])
     populateUploadInstructionsPane(UI.contentPanes[2])
+    populateSettingsPane(UI.contentPanes[3])
 
     PanelTemplates_SetNumTabs(frame, #TAB_DEFINITIONS)
     PanelTemplates_UpdateTabs(frame)
@@ -671,6 +1273,7 @@ function UI.ToggleMainWindow()
     if UI.mainFrame:IsShown() then
         UI.mainFrame:Hide()
     else
+        UI.RefreshMyDataPane()
         UI.RefreshUploadInstructionsPane()
         UI.mainFrame:Show()
     end
@@ -688,6 +1291,7 @@ function UI.Initialize()
     createTrackerWindow()
     UI.SetMinimapButtonVisible(getShowMinimapButtonSetting())
     UI.SetTrackerWindowVisible(getShowTrackerWindowSetting())
+    UI.RefreshMyDataPane()
     UI.RefreshUploadInstructionsPane()
 
     UI.isInitialized = true

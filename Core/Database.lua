@@ -270,6 +270,32 @@ local function sanitizeDropCount(value)
     return math.floor(value)
 end
 
+local function copyRunSnapshot(runRecord)
+    if not runRecord then
+        return nil
+    end
+
+    return {
+        dungeon_name = runRecord.dungeon_name,
+        run_id = runRecord.run_id,
+        zone_id = runRecord.zone_id,
+        started_at = runRecord.started_at,
+        outside_instance_started_at = runRecord.outside_instance_started_at,
+        ended_at = runRecord.ended_at,
+        hardcore = sanitizeHardcoreFlag(runRecord.hardcore),
+        party = copyPartySnapshot(runRecord.party),
+        replacements = sanitizeReplacementCount(runRecord.replacements),
+        deaths = copyDeathsSnapshot(runRecord.deaths),
+        first_death = copyFirstDeathSnapshot(runRecord.first_death),
+        boss_timer = copyBossTimerSnapshot(runRecord.boss_timer),
+        boss_loot = copyBossLootSnapshot(runRecord.boss_loot),
+        green_drops = sanitizeDropCount(runRecord.green_drops),
+        blue_drops = sanitizeDropCount(runRecord.blue_drops),
+        purple_drops = sanitizeDropCount(runRecord.purple_drops),
+        pending_boss_loot_queue = copyPendingBossLootQueueSnapshot(runRecord.pending_boss_loot_queue),
+    }
+end
+
 -- Returns a shallow copy so archived runs are not later mutated through the
 -- active_run reference.
 local function copyTable(source)
@@ -429,6 +455,20 @@ end
 function Database.GetRecordCount()
     Database.Initialize()
     return #DungeonOracleDB.records
+end
+
+function Database.GetRecords()
+    local records = {}
+    local index
+    local record
+
+    Database.Initialize()
+
+    for index, record in ipairs(DungeonOracleDB.records) do
+        records[index] = copyRunSnapshot(record)
+    end
+
+    return records
 end
 
 -- Public: returns the locally stored run whose dungeon name matches the
