@@ -294,6 +294,19 @@ local function getUnitFullName(unitToken)
     return name
 end
 
+-- Normalizes player names for comparisons between party snapshots and combat
+-- log names, which may or may not include realm suffixes depending on source.
+local function normalizePlayerName(name)
+    if not name or name == "" then
+        return nil
+    end
+
+    name = string.lower(name)
+    name = string.gsub(name, "%-.+$", "")
+
+    return name
+end
+
 -- Returns the current tracked group size. Raid-sized groups are allowed to
 -- report larger than five so replacement logic can explicitly ignore them.
 local function getTrackedGroupSize()
@@ -582,6 +595,49 @@ local function collectPartySnapshot()
     return finalizePartyRoles(buildPartySnapshot())
 end
 
+local function findTrackedPartyMemberByName(party, playerName)
+    local normalizedPlayerName = normalizePlayerName(playerName)
+    local member
+
+    if not party or not normalizedPlayerName then
+        return nil
+    end
+
+    for _, member in ipairs(party) do
+        if normalizePlayerName(member.name) == normalizedPlayerName then
+            return member
+        end
+    end
+
+    return nil
+end
+
+-- Appends one death record when a tracked party member dies during an active
+-- run. The snapshot is intentionally simple: class and level.
+local function recordPartyDeath(deadPlayerName)
+    local activeRun = Tracker.state.active_run
+    local member
+
+    if not activeRun then
+        return false
+    end
+
+    member = findTrackedPartyMemberByName(activeRun.party, deadPlayerName)
+    if not member then
+        return false
+    end
+
+    activeRun.deaths = activeRun.deaths or {}
+    table.insert(activeRun.deaths, {
+        class = member.class,
+        level = member.level,
+    })
+
+    persistActiveRun()
+    printMessage(string.format("recorded death for %s.", member.name or deadPlayerName or "party member"))
+    return true
+end
+
 -- Stores the active run in memory and persists the same state into the
 -- database layer so later rebuild steps can rely on one shared shape.
 local function setActiveRun(runId, dungeonName, startedAt, zoneId, party, hardcore)
@@ -594,6 +650,7 @@ local function setActiveRun(runId, dungeonName, startedAt, zoneId, party, hardco
         hardcore = hardcore == true,
         party = party or {},
         replacements = 0,
+        deaths = {},
     }
 
     Tracker.state.last_group_size = #Tracker.state.active_run.party
@@ -624,6 +681,7 @@ local function reactivateKnownRunByDungeon(dungeonName, zoneId)
         hardcore = existingRun.hardcore == true,
         party = existingRun.party or {},
         replacements = existingRun.replacements or 0,
+        deaths = existingRun.deaths or {},
     }
 
     Tracker.state.last_group_size = getTrackedGroupSize()
@@ -1007,7 +1065,7 @@ function Tracker.HandleEvent(event, ...)
             end
         end
     elseif event == "COMBAT_LOG_EVENT_UNFILTERED" then
-        local _, subEvent, _, sourceGUID, _, _, _, destGUID = CombatLogGetCurrentEventInfo()
+        local _, subEvent, _, sourceGUID, _, _, _, destGUID, destName = CombatLogGetCurrentEventInfo()
         local zoneId
         local npcId
 
@@ -1020,5 +1078,9 @@ function Tracker.HandleEvent(event, ...)
         end
 
         resolveRunForCurrentDungeon()
+
+        if subEvent == "UNIT_DIED" then
+            recordPartyDeath(destName)
+        end
     end
 end

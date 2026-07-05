@@ -32,6 +32,12 @@ DungeonOracle.Database = DungeonOracle.Database or {}
 --             },
 --         },
 --         replacements = 0,
+--         deaths = {
+--             {
+--                 class = "WARRIOR",
+--                 level = 28,
+--             },
+--         },
 --     },
 --     records = {
 --         {
@@ -57,6 +63,12 @@ DungeonOracle.Database = DungeonOracle.Database or {}
 --                 },
 --             },
 --             replacements = 0,
+--             deaths = {
+--                 {
+--                     class = "WARRIOR",
+--                     level = 28,
+--                 },
+--             },
 --         },
 --     },
 -- }
@@ -89,6 +101,27 @@ local function copyPartySnapshot(party)
             class = member.class,
             level = member.level,
             role = member.role,
+        }
+    end
+
+    return copy
+end
+
+-- Copies the death snapshot list so archived and active runs do not share the
+-- same nested tables.
+local function copyDeathsSnapshot(deaths)
+    local copy = {}
+    local index
+    local deathEntry
+
+    if not deaths then
+        return copy
+    end
+
+    for index, deathEntry in ipairs(deaths) do
+        copy[index] = {
+            class = deathEntry.class,
+            level = deathEntry.level,
         }
     end
 
@@ -165,6 +198,7 @@ local function createOrderedCompletedRun(activeRun, endedAt)
         hardcore = sanitizeHardcoreFlag(activeRun.hardcore),
         party = copyPartySnapshot(activeRun.party),
         replacements = sanitizeReplacementCount(activeRun.replacements),
+        deaths = copyDeathsSnapshot(activeRun.deaths),
     }
 end
 
@@ -215,6 +249,7 @@ function Database.SetActiveRun(activeRun)
             hardcore = sanitizeHardcoreFlag(activeRun.hardcore),
             party = copyPartySnapshot(activeRun.party),
             replacements = sanitizeReplacementCount(activeRun.replacements),
+            deaths = copyDeathsSnapshot(activeRun.deaths),
         }
     else
         DungeonOracleDB.active_run = nil
@@ -242,6 +277,7 @@ function Database.GetActiveRun()
         hardcore = sanitizeHardcoreFlag(DungeonOracleDB.active_run.hardcore),
         party = copyPartySnapshot(DungeonOracleDB.active_run.party),
         replacements = sanitizeReplacementCount(DungeonOracleDB.active_run.replacements),
+        deaths = copyDeathsSnapshot(DungeonOracleDB.active_run.deaths),
     }
 end
 

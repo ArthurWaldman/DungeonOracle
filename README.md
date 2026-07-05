@@ -126,6 +126,12 @@ DungeonOracleDB = {
             },
         },
         replacements = 0,
+        deaths = {
+            {
+                class = "WARRIOR",
+                level = 28,
+            },
+        },
     },
     records = {
         {
@@ -151,6 +157,12 @@ DungeonOracleDB = {
                 },
             },
             replacements = 0,
+            deaths = {
+                {
+                    class = "WARRIOR",
+                    level = 28,
+                },
+            },
         },
     },
 }
@@ -193,6 +205,9 @@ DungeonOracleDB = {
 
 - `replacements`
   The number of valid replacement players detected after a run that started as a full five-player group. Replacement checks now compare player names against the original five-player snapshot.
+
+- `deaths`
+  A list of tracked party death snapshots. Each entry stores the dead player’s class and stored level value.
 
 ## Dungeon Data
 
