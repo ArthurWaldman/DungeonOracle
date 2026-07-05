@@ -10,6 +10,8 @@ local Tracker = DungeonOracle.Tracker
 local TRACKER_EVENTS = {
     "PLAYER_ENTERING_WORLD",
     "ZONE_CHANGED_NEW_AREA",
+    "GROUP_ROSTER_UPDATE",
+    "PLAYER_LEVEL_UP",
     "PLAYER_REGEN_DISABLED",
     "UNIT_SPELLCAST_START",
     "UNIT_SPELLCAST_SUCCEEDED",
@@ -27,6 +29,8 @@ local function createInitialState()
         active_run = nil,
         outside_instance_token = nil,
         last_zone_npc_id = nil,
+        last_group_size = 0,
+        last_replacement_signature = nil,
     }
 end
 
@@ -256,6 +260,37 @@ local function getTrackedPartyUnits()
     return units
 end
 
+-- Returns a stable player identifier for snapshotting party state. Realm is
+-- included when available so later comparison works even if duplicate names
+-- ever appear.
+local function getUnitFullName(unitToken)
+    local name, realmName = UnitName(unitToken)
+
+    if not name or name == "" then
+        return nil
+    end
+
+    if realmName and realmName ~= "" then
+        return string.format("%s-%s", name, realmName)
+    end
+
+    return name
+end
+
+-- Returns the current tracked group size. Raid-sized groups are allowed to
+-- report larger than five so replacement logic can explicitly ignore them.
+local function getTrackedGroupSize()
+    if IsInRaid and IsInRaid() and GetNumGroupMembers then
+        return GetNumGroupMembers() or 0
+    end
+
+    if GetNumSubgroupMembers then
+        return (GetNumSubgroupMembers() or 0) + 1
+    end
+
+    return 1
+end
+
 -- Checks whether a unit currently has the requested buff. This lets role
 -- inference use a few strong live signals without committing to full combat
 -- analytics yet.
@@ -394,6 +429,7 @@ local function buildPartySnapshot()
     local units = getTrackedPartyUnits()
     local party = {}
     local unitToken
+    local playerName
     local _, classFilename
     local level
     local assignedRole
@@ -402,11 +438,13 @@ local function buildPartySnapshot()
 
     for _, unitToken in ipairs(units) do
         if UnitExists(unitToken) then
+            playerName = getUnitFullName(unitToken)
             _, classFilename = UnitClass(unitToken)
             level = UnitLevel(unitToken)
             assignedRole = UnitGroupRolesAssigned and UnitGroupRolesAssigned(unitToken) or "NONE"
 
             table.insert(party, {
+                name = playerName or "UNKNOWN",
                 class = classFilename or "UNKNOWN",
                 level = level or 0,
                 role = ROLE_DAMAGER,
@@ -418,6 +456,63 @@ local function buildPartySnapshot()
     end
 
     return party
+end
+
+-- Builds a stable signature from the party names present in a five-player
+-- group. Replacement detection now keys off the actual player identities.
+local function buildPartyNameSignature(party)
+    local entries = {}
+    local index
+    local member
+
+    if not party then
+        return ""
+    end
+
+    for index, member in ipairs(party) do
+        entries[index] = member.name or "UNKNOWN"
+    end
+
+    table.sort(entries)
+
+    return table.concat(entries, "|")
+end
+
+-- Reconciles in-dungeon level-ups without changing replacement identity. When
+-- a matched player gains a level during the run, we record that as +0.5 for
+-- later aggregate analysis.
+local function updatePartyLevelsForLevelUps(activeRun, currentParty)
+    local currentLevelsByName = {}
+    local changed = false
+    local member
+    local currentLevel
+    local storedBaselineLevel
+    local gainedLevels
+
+    if not activeRun or not activeRun.party or not currentParty then
+        return false
+    end
+
+    for _, member in ipairs(currentParty) do
+        if member.name and member.name ~= "" then
+            currentLevelsByName[member.name] = tonumber(member.level) or 0
+        end
+    end
+
+    for _, member in ipairs(activeRun.party) do
+        if member.name and member.name ~= "" then
+            currentLevel = currentLevelsByName[member.name]
+            storedBaselineLevel = math.ceil(tonumber(member.level) or 0)
+
+            if currentLevel and currentLevel > storedBaselineLevel then
+                gainedLevels = currentLevel - storedBaselineLevel
+                member.level = (tonumber(member.level) or 0) + (gainedLevels * 0.5)
+                changed = true
+            end
+        end
+    end
+
+    return changed
 end
 
 -- Infers one healer and one tank using explicit class rules plus a few strong
@@ -480,8 +575,11 @@ local function setActiveRun(runId, dungeonName, startedAt, zoneId, party)
         zone_id = zoneId,
         outside_instance_started_at = nil,
         party = party or {},
+        replacements = 0,
     }
 
+    Tracker.state.last_group_size = #Tracker.state.active_run.party
+    Tracker.state.last_replacement_signature = buildPartyNameSignature(Tracker.state.active_run.party)
     persistActiveRun()
 end
 
@@ -506,8 +604,11 @@ local function reactivateKnownRunByDungeon(dungeonName, zoneId)
         zone_id = existingRun.zone_id or zoneId,
         outside_instance_started_at = nil,
         party = existingRun.party or {},
+        replacements = existingRun.replacements or 0,
     }
 
+    Tracker.state.last_group_size = getTrackedGroupSize()
+    Tracker.state.last_replacement_signature = buildPartyNameSignature(Tracker.state.active_run.party)
     persistActiveRun()
     return true
 end
@@ -594,6 +695,89 @@ local function resolveRunForCurrentDungeon()
     end
 
     return startFreshRun()
+end
+
+-- Detects when a full five-player run has one or more genuinely new names in
+-- the group compared to the run-start party snapshot.
+local function handleGroupRosterUpdate()
+    local activeRun = Tracker.state.active_run
+    local previousGroupSize = Tracker.state.last_group_size or 0
+    local currentGroupSize = getTrackedGroupSize()
+    local startGroupSize
+    local currentParty
+    local currentSignature
+    local startSignature
+    local startNameSet = {}
+    local currentNameSet = {}
+    local replacementDelta = 0
+    local index
+    local member
+
+    Tracker.state.last_group_size = currentGroupSize
+
+    if not activeRun or not activeRun.party then
+        return
+    end
+
+    startGroupSize = #activeRun.party
+    if startGroupSize ~= 5 then
+        return
+    end
+
+    if currentGroupSize <= previousGroupSize then
+        return
+    end
+
+    if currentGroupSize > 5 or currentGroupSize ~= 5 then
+        return
+    end
+
+    currentParty = buildPartySnapshot()
+    if updatePartyLevelsForLevelUps(activeRun, currentParty) then
+        persistActiveRun()
+        printMessage("party levels updated for detected in-dungeon level ups.")
+    end
+
+    currentSignature = buildPartyNameSignature(currentParty)
+    startSignature = buildPartyNameSignature(activeRun.party)
+
+    if currentSignature == startSignature then
+        Tracker.state.last_replacement_signature = currentSignature
+        return
+    end
+
+    if Tracker.state.last_replacement_signature == currentSignature then
+        return
+    end
+
+    for _, member in ipairs(activeRun.party) do
+        if member.name and member.name ~= "" then
+            startNameSet[member.name] = true
+        end
+    end
+
+    for _, member in ipairs(currentParty) do
+        if member.name and member.name ~= "" then
+            currentNameSet[member.name] = true
+        end
+    end
+
+    for index, member in ipairs(currentParty) do
+        if member.name and member.name ~= "" and currentNameSet[member.name] and not startNameSet[member.name] then
+            replacementDelta = replacementDelta + 1
+            currentNameSet[member.name] = nil
+        end
+    end
+
+    if replacementDelta <= 0 then
+        Tracker.state.last_replacement_signature = currentSignature
+        return
+    end
+
+    activeRun.replacements = (tonumber(activeRun.replacements) or 0) + replacementDelta
+    Tracker.state.last_replacement_signature = currentSignature
+    persistActiveRun()
+    printMessage(string.format("replacement detected. replacement count is now %d.", activeRun.replacements))
 end
 
 -- Completes the current active run after the player has remained outside all
@@ -764,6 +948,9 @@ function Tracker.Initialize(eventFrame)
                 DungeonOracle.UI.ShowTrackerWindow()
             end
         end
+
+        Tracker.state.last_group_size = getTrackedGroupSize()
+        Tracker.state.last_replacement_signature = buildPartyNameSignature(Tracker.state.active_run.party)
     end
 
     for _, eventName in ipairs(TRACKER_EVENTS) do
@@ -778,6 +965,13 @@ function Tracker.HandleEvent(event, ...)
     if event == "PLAYER_ENTERING_WORLD" or event == "ZONE_CHANGED_NEW_AREA" then
         updateCurrentDungeon()
         completeActiveRunForDungeonTransition()
+    elseif event == "GROUP_ROSTER_UPDATE" then
+        handleGroupRosterUpdate()
+    elseif event == "PLAYER_LEVEL_UP" then
+        if Tracker.state.active_run and updatePartyLevelsForLevelUps(Tracker.state.active_run, buildPartySnapshot()) then
+            persistActiveRun()
+            printMessage("party levels updated after a detected level up.")
+        end
     elseif event == "PLAYER_REGEN_DISABLED" then
         printMessage("combat detected; waiting for zone id from a reliable creature GUID.")
     elseif event == "UNIT_SPELLCAST_START" or event == "UNIT_SPELLCAST_SUCCEEDED" then

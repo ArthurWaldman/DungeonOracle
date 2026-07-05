@@ -112,16 +112,19 @@ DungeonOracleDB = {
         outside_instance_started_at = 1783243487,
         party = {
             {
+                name = "Player-Realm",
                 class = "WARRIOR",
-                level = 60,
+                level = 60.5,
                 role = "TANK",
             },
             {
+                name = "Mage-Realm",
                 class = "MAGE",
                 level = 60,
                 role = "DAMAGER",
             },
         },
+        replacements = 0,
     },
     records = {
         {
@@ -133,16 +136,19 @@ DungeonOracleDB = {
             ended_at = 1783243482,
             party = {
                 {
+                    name = "Player-Realm",
                     class = "WARRIOR",
-                    level = 60,
+                    level = 60.5,
                     role = "TANK",
                 },
                 {
+                    name = "Mage-Realm",
                     class = "MAGE",
                     level = 60,
                     role = "DAMAGER",
                 },
             },
+            replacements = 0,
         },
     },
 }
@@ -178,7 +184,10 @@ DungeonOracleDB = {
   The Unix timestamp when the run was archived as complete.
 
 - `party`
-  A run-start snapshot of each player’s class, level, and inferred role.
+  A run snapshot of each player’s name, class, level, and inferred role. When a tracked player levels during the run, the stored `level` is increased by `0.5`.
+
+- `replacements`
+  The number of valid replacement players detected after a run that started as a full five-player group. Replacement checks now compare player names against the original five-player snapshot.
 
 ## Dungeon Data
 

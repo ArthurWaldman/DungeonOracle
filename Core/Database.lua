@@ -18,16 +18,19 @@ DungeonOracle.Database = DungeonOracle.Database or {}
 --         outside_instance_started_at = 1783243487,
 --         party = {
 --             {
+--                 name = "Player-Realm",
 --                 class = "WARRIOR",
---                 level = 60,
+--                 level = 60.5,
 --                 role = "TANK",
 --             },
 --             {
+--                 name = "Mage-Realm",
 --                 class = "MAGE",
 --                 level = 60,
 --                 role = "DAMAGER",
 --             },
 --         },
+--         replacements = 0,
 --     },
 --     records = {
 --         {
@@ -39,16 +42,19 @@ DungeonOracle.Database = DungeonOracle.Database or {}
 --             ended_at = 1783243482,
 --             party = {
 --                 {
+--                     name = "Player-Realm",
 --                     class = "WARRIOR",
---                     level = 60,
+--                     level = 60.5,
 --                     role = "TANK",
 --                 },
 --                 {
+--                     name = "Mage-Realm",
 --                     class = "MAGE",
 --                     level = 60,
 --                     role = "DAMAGER",
 --                 },
 --             },
+--             replacements = 0,
 --         },
 --     },
 -- }
@@ -77,6 +83,7 @@ local function copyPartySnapshot(party)
 
     for index, member in ipairs(party) do
         copy[index] = {
+            name = member.name,
             class = member.class,
             level = member.level,
             role = member.role,
@@ -84,6 +91,18 @@ local function copyPartySnapshot(party)
     end
 
     return copy
+end
+
+-- Normalizes the replacements counter so the database always stores a
+-- non-negative integer.
+local function sanitizeReplacementCount(replacements)
+    replacements = tonumber(replacements) or 0
+
+    if replacements < 0 then
+        return 0
+    end
+
+    return replacements
 end
 
 -- Returns a shallow copy so archived runs are not later mutated through the
@@ -136,6 +155,7 @@ local function createOrderedCompletedRun(activeRun, endedAt)
         outside_instance_started_at = activeRun.outside_instance_started_at,
         ended_at = endedAt or time(),
         party = copyPartySnapshot(activeRun.party),
+        replacements = sanitizeReplacementCount(activeRun.replacements),
     }
 end
 
@@ -184,6 +204,7 @@ function Database.SetActiveRun(activeRun)
             started_at = activeRun.started_at,
             outside_instance_started_at = activeRun.outside_instance_started_at,
             party = copyPartySnapshot(activeRun.party),
+            replacements = sanitizeReplacementCount(activeRun.replacements),
         }
     else
         DungeonOracleDB.active_run = nil
@@ -209,6 +230,7 @@ function Database.GetActiveRun()
         started_at = DungeonOracleDB.active_run.started_at,
         outside_instance_started_at = DungeonOracleDB.active_run.outside_instance_started_at,
         party = copyPartySnapshot(DungeonOracleDB.active_run.party),
+        replacements = sanitizeReplacementCount(DungeonOracleDB.active_run.replacements),
     }
 end
 
