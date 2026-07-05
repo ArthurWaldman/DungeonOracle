@@ -110,6 +110,7 @@ DungeonOracleDB = {
         zone_id = 13936,
         started_at = 1783243482,
         outside_instance_started_at = 1783243487,
+        hardcore = false,
         party = {
             {
                 name = "Player-Realm",
@@ -134,6 +135,7 @@ DungeonOracleDB = {
             started_at = 1783243466,
             outside_instance_started_at = 1783243471,
             ended_at = 1783243482,
+            hardcore = false,
             party = {
                 {
                     name = "Player-Realm",
@@ -183,6 +185,9 @@ DungeonOracleDB = {
 - `ended_at`
   The Unix timestamp when the run was archived as complete.
 
+- `hardcore`
+  `true` when the run occurred on a realm listed in `RealmData/HardcoreRealms.lua`, otherwise `false`.
+
 - `party`
   A run snapshot of each player’s name, class, level, and inferred role. When a tracked player levels during the run, the stored `level` is increased by `0.5`.
 
@@ -201,6 +206,16 @@ Each dungeon file defines:
 - tracked bosses
 - tracked loot per boss
 - reverse loot lookup via `loot_to_bosses`
+
+## Realm Data
+
+The `RealmData/` directory contains small static realm metadata used by the
+tracker.
+
+Current usage:
+- `HardcoreRealms.lua`
+  A set of normalized realm names used to determine whether a run should be
+  tagged with `hardcore = true`.
 
 The shared schema for all dungeon definition files now lives in:
 

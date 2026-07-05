@@ -7,6 +7,7 @@
 
 DungeonOracle.lua
 Core\Database.lua
+RealmData\HardcoreRealms.lua
 Core\Tracker.lua
 Core\UI.lua
 DungeonData\Deadmines.lua

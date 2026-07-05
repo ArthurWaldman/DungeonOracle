@@ -16,6 +16,7 @@ DungeonOracle.Database = DungeonOracle.Database or {}
 --         zone_id = 13936,
 --         started_at = 1783243482,
 --         outside_instance_started_at = 1783243487,
+--         hardcore = false,
 --         party = {
 --             {
 --                 name = "Player-Realm",
@@ -40,6 +41,7 @@ DungeonOracle.Database = DungeonOracle.Database or {}
 --             started_at = 1783243466,
 --             outside_instance_started_at = 1783243471,
 --             ended_at = 1783243482,
+--             hardcore = false,
 --             party = {
 --                 {
 --                     name = "Player-Realm",
@@ -105,6 +107,12 @@ local function sanitizeReplacementCount(replacements)
     return replacements
 end
 
+-- Normalizes the hardcore flag so the saved run always contains an explicit
+-- true/false value instead of nil.
+local function sanitizeHardcoreFlag(hardcore)
+    return hardcore == true
+end
+
 -- Returns a shallow copy so archived runs are not later mutated through the
 -- active_run reference.
 local function copyTable(source)
@@ -154,6 +162,7 @@ local function createOrderedCompletedRun(activeRun, endedAt)
         started_at = activeRun.started_at,
         outside_instance_started_at = activeRun.outside_instance_started_at,
         ended_at = endedAt or time(),
+        hardcore = sanitizeHardcoreFlag(activeRun.hardcore),
         party = copyPartySnapshot(activeRun.party),
         replacements = sanitizeReplacementCount(activeRun.replacements),
     }
@@ -203,6 +212,7 @@ function Database.SetActiveRun(activeRun)
             zone_id = activeRun.zone_id,
             started_at = activeRun.started_at,
             outside_instance_started_at = activeRun.outside_instance_started_at,
+            hardcore = sanitizeHardcoreFlag(activeRun.hardcore),
             party = copyPartySnapshot(activeRun.party),
             replacements = sanitizeReplacementCount(activeRun.replacements),
         }
@@ -229,6 +239,7 @@ function Database.GetActiveRun()
         zone_id = DungeonOracleDB.active_run.zone_id,
         started_at = DungeonOracleDB.active_run.started_at,
         outside_instance_started_at = DungeonOracleDB.active_run.outside_instance_started_at,
+        hardcore = sanitizeHardcoreFlag(DungeonOracleDB.active_run.hardcore),
         party = copyPartySnapshot(DungeonOracleDB.active_run.party),
         replacements = sanitizeReplacementCount(DungeonOracleDB.active_run.replacements),
     }

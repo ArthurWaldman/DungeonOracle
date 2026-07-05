@@ -109,6 +109,23 @@ local function normalizeDungeonName(name)
     return name
 end
 
+-- Checks whether the current realm is one of the configured Hardcore realms.
+local function isCurrentRealmHardcore()
+    local realmName = GetRealmName and GetRealmName() or nil
+    local normalizedRealmName
+
+    if not realmName or realmName == "" then
+        return false
+    end
+
+    normalizedRealmName = normalizeDungeonName(realmName)
+
+    return DungeonOracleRealmData
+        and DungeonOracleRealmData.hardcore_realms
+        and DungeonOracleRealmData.hardcore_realms[normalizedRealmName] == true
+        or false
+end
+
 -- Returns the current instance identity when the player is inside an instance.
 local function getCurrentInstanceInfo()
     local inInstance = IsInInstance()
@@ -567,13 +584,14 @@ end
 
 -- Stores the active run in memory and persists the same state into the
 -- database layer so later rebuild steps can rely on one shared shape.
-local function setActiveRun(runId, dungeonName, startedAt, zoneId, party)
+local function setActiveRun(runId, dungeonName, startedAt, zoneId, party, hardcore)
     Tracker.state.active_run = {
         run_id = runId,
         dungeon_name = dungeonName,
         started_at = startedAt,
         zone_id = zoneId,
         outside_instance_started_at = nil,
+        hardcore = hardcore == true,
         party = party or {},
         replacements = 0,
     }
@@ -603,6 +621,7 @@ local function reactivateKnownRunByDungeon(dungeonName, zoneId)
         started_at = existingRun.started_at,
         zone_id = existingRun.zone_id or zoneId,
         outside_instance_started_at = nil,
+        hardcore = existingRun.hardcore == true,
         party = existingRun.party or {},
         replacements = existingRun.replacements or 0,
     }
@@ -662,6 +681,7 @@ startFreshRun = function()
     local startedAt
     local runId
     local party
+    local hardcore
 
     if not currentDungeon or not currentDungeon.zone_id or Tracker.state.active_run then
         return false
@@ -670,8 +690,9 @@ startFreshRun = function()
     startedAt = time()
     runId = createRunId()
     party = collectPartySnapshot()
+    hardcore = isCurrentRealmHardcore()
 
-    setActiveRun(runId, currentDungeon.name, startedAt, currentDungeon.zone_id, party)
+    setActiveRun(runId, currentDungeon.name, startedAt, currentDungeon.zone_id, party, hardcore)
     printMessage(string.format("run started for %s with zone id %d.", currentDungeon.name, currentDungeon.zone_id))
     return true
 end
