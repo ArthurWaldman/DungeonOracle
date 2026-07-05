@@ -12,6 +12,8 @@ local TRACKER_EVENTS = {
     "ZONE_CHANGED_NEW_AREA",
     "GROUP_ROSTER_UPDATE",
     "PLAYER_LEVEL_UP",
+    "PLAYER_ALIVE",
+    "PLAYER_UNGHOST",
     "PLAYER_REGEN_DISABLED",
     "UNIT_SPELLCAST_START",
     "UNIT_SPELLCAST_SUCCEEDED",
@@ -44,6 +46,12 @@ local function getOutsideTimeoutRemainingSeconds()
     end
 
     return math.max(0, OUTSIDE_INSTANCE_TIMEOUT_SECONDS - (time() - activeRun.outside_instance_started_at))
+end
+
+-- Returns whether the player is currently dead or released as a ghost. We use
+-- this to avoid treating a death release as a normal dungeon exit.
+local function isPlayerDeadOrGhost()
+    return UnitIsDeadOrGhost and UnitIsDeadOrGhost("player") or false
 end
 
 -- Routes tracker lifecycle messages into the in-dungeon tracker log.
@@ -981,8 +989,10 @@ local function updateCurrentDungeon()
     else
         Tracker.state.current_dungeon = nil
 
-        if not instanceInfo and Tracker.state.active_run then
+        if not instanceInfo and Tracker.state.active_run and not isPlayerDeadOrGhost() then
             beginOutsideInstanceTimeout()
+        elseif Tracker.state.active_run and DungeonOracle.UI and DungeonOracle.UI.ShowTrackerWindow then
+            DungeonOracle.UI.ShowTrackerWindow()
         elseif DungeonOracle.UI and DungeonOracle.UI.HideTrackerWindow then
             DungeonOracle.UI.HideTrackerWindow()
         end
@@ -1020,12 +1030,14 @@ function Tracker.Initialize(eventFrame)
             if DungeonOracle.UI and DungeonOracle.UI.ShowTrackerWindow then
                 DungeonOracle.UI.ShowTrackerWindow()
             end
-        else
+        elseif not isPlayerDeadOrGhost() then
             beginOutsideInstanceTimeout()
 
             if DungeonOracle.UI and DungeonOracle.UI.ShowTrackerWindow then
                 DungeonOracle.UI.ShowTrackerWindow()
             end
+        elseif DungeonOracle.UI and DungeonOracle.UI.ShowTrackerWindow then
+            DungeonOracle.UI.ShowTrackerWindow()
         end
 
         Tracker.state.last_group_size = getTrackedGroupSize()
@@ -1050,6 +1062,18 @@ function Tracker.HandleEvent(event, ...)
         if Tracker.state.active_run and updatePartyLevelsForLevelUps(Tracker.state.active_run, buildPartySnapshot()) then
             persistActiveRun()
             printMessage("party levels updated after a detected level up.")
+        end
+    elseif event == "PLAYER_ALIVE" or event == "PLAYER_UNGHOST" then
+        if Tracker.state.active_run then
+            updateCurrentDungeon()
+
+            if not Tracker.state.current_dungeon and not Tracker.state.outside_instance_token and not isPlayerDeadOrGhost() then
+                beginOutsideInstanceTimeout()
+
+                if DungeonOracle.UI and DungeonOracle.UI.ShowTrackerWindow then
+                    DungeonOracle.UI.ShowTrackerWindow()
+                end
+            end
         end
     elseif event == "PLAYER_REGEN_DISABLED" then
         printMessage("combat detected; waiting for zone id from a reliable creature GUID.")
