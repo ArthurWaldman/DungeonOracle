@@ -706,6 +706,22 @@ local function collectPartySnapshot()
     return finalizePartyRoles(buildPartySnapshot())
 end
 
+local function refreshActiveRunPartyLevelsFromLiveGroup()
+    local activeRun = Tracker.state.active_run
+    local currentParty
+
+    if not activeRun then
+        return false
+    end
+
+    currentParty = buildPartySnapshot()
+    if not currentParty or #currentParty == 0 then
+        return false
+    end
+
+    return updatePartyLevelsForLevelUps(activeRun, currentParty)
+end
+
 local function hasBossTimerEntry(activeRun, bossId)
     local timerEntry
 
@@ -1016,6 +1032,10 @@ local function transitionToNewRunForZoneShift()
     previousRunId = activeRun.run_id
     previousZoneId = activeRun.zone_id
 
+    if refreshActiveRunPartyLevelsFromLiveGroup() then
+        persistActiveRun()
+    end
+
     finalizePendingBossLoot()
 
     if DungeonOracle.Database and DungeonOracle.Database.CompleteActiveRun then
@@ -1176,6 +1196,10 @@ local function finalizeOutsideInstanceTimeout(timeoutToken)
 
     Tracker.state.outside_instance_token = nil
 
+    if refreshActiveRunPartyLevelsFromLiveGroup() then
+        persistActiveRun()
+    end
+
     finalizePendingBossLoot()
 
     if DungeonOracle.Database and DungeonOracle.Database.CompleteActiveRun then
@@ -1298,6 +1322,10 @@ local function completeActiveRunForDungeonTransition()
     end
 
     Tracker.state.outside_instance_token = nil
+
+    if refreshActiveRunPartyLevelsFromLiveGroup() then
+        persistActiveRun()
+    end
 
     finalizePendingBossLoot()
 
