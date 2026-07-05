@@ -23,7 +23,7 @@ local MINIMAP_ICON = "Interface\\Icons\\INV_Misc_Note_01"
 local UPLOAD_URL = "https://www.dropbox.com/request/2okeud4m0vplo6e8nsmk"
 local PATH_FONT_SIZE = 9
 local TRACKER_WINDOW_WIDTH = 360
-local TRACKER_WINDOW_HEIGHT = 208
+local TRACKER_WINDOW_HEIGHT = 224
 local TRACKER_LOG_LINE_LIMIT = 8
 
 -- Tab definitions drive both the clickable tab buttons and the associated
@@ -255,16 +255,20 @@ local function createTrackerWindow()
     bossTimerText:SetPoint("TOPLEFT", timerText, "BOTTOMLEFT", 0, -6)
     bossTimerText:SetText("Boss Timer: Inactive")
 
-    local runIdText = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    runIdText:SetPoint("TOPLEFT", bossTimerText, "BOTTOMLEFT", 0, -6)
-    runIdText:SetText("Run ID: Inactive")
-
     local zoneIdText = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    zoneIdText:SetPoint("TOPLEFT", runIdText, "BOTTOMLEFT", 0, -6)
+    zoneIdText:SetPoint("TOPLEFT", bossTimerText, "BOTTOMLEFT", 0, -6)
     zoneIdText:SetText("Zone ID: Inactive")
 
+    local recorderText = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    recorderText:SetPoint("TOPLEFT", zoneIdText, "BOTTOMLEFT", 0, -6)
+    recorderText:SetText("Recorder: Inactive")
+
+    local runIdText = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    runIdText:SetPoint("TOPLEFT", recorderText, "BOTTOMLEFT", 0, -6)
+    runIdText:SetText("Run ID: Inactive")
+
     local lootCounterText = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    lootCounterText:SetPoint("TOPLEFT", zoneIdText, "BOTTOMLEFT", 0, -6)
+    lootCounterText:SetPoint("TOPLEFT", runIdText, "BOTTOMLEFT", 0, -6)
     lootCounterText:SetText("Green: 0 | Blue: 0 | Purple: 0")
 
     local bossQueueText = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
@@ -284,8 +288,9 @@ local function createTrackerWindow()
     UI.trackerFrame = frame
     UI.trackerTimerText = timerText
     UI.trackerBossTimerText = bossTimerText
-    UI.trackerRunIdText = runIdText
     UI.trackerZoneIdText = zoneIdText
+    UI.trackerRecorderText = recorderText
+    UI.trackerRunIdText = runIdText
     UI.trackerLootCounterText = lootCounterText
     UI.trackerBossQueueText = bossQueueText
     UI.trackerLogText = logText
@@ -300,6 +305,7 @@ local function createTrackerWindow()
         local pendingBossNames
         local queueEntry
         local zoneId
+        local recorderName
 
         self.elapsedSinceTimerRefresh = (self.elapsedSinceTimerRefresh or 0) + elapsed
         if self.elapsedSinceTimerRefresh < 0.25 then
@@ -356,6 +362,19 @@ local function createTrackerWindow()
                 UI.trackerZoneIdText:SetText(string.format("Zone ID: %d", zoneId))
             else
                 UI.trackerZoneIdText:SetText("Zone ID: Inactive")
+            end
+        end
+
+        recorderName = DungeonOracle
+            and DungeonOracle.Tracker
+            and DungeonOracle.Tracker.GetRecorderName
+            and DungeonOracle.Tracker.GetRecorderName()
+
+        if UI.trackerRecorderText then
+            if recorderName and recorderName ~= "" then
+                UI.trackerRecorderText:SetText(string.format("Recorder: %s", recorderName))
+            else
+                UI.trackerRecorderText:SetText("Recorder: Inactive")
             end
         end
 

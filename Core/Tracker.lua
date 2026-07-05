@@ -11,6 +11,7 @@ local TRACKER_EVENTS = {
     "PLAYER_ENTERING_WORLD",
     "ZONE_CHANGED_NEW_AREA",
     "GROUP_ROSTER_UPDATE",
+    "CHAT_MSG_ADDON",
     "PLAYER_LEVEL_UP",
     "PLAYER_ALIVE",
     "PLAYER_UNGHOST",
@@ -22,6 +23,10 @@ local TRACKER_EVENTS = {
 }
 
 local OUTSIDE_INSTANCE_TIMEOUT_SECONDS = 30
+local RUN_ID_SYNC_WINDOW_SECONDS = 1
+local ADDON_MESSAGE_PREFIX = "DungeonOracle"
+local MESSAGE_TYPE_HELLO = "HELLO"
+local MESSAGE_TYPE_RUN_ID = "RUN_ID"
 
 Tracker.state = Tracker.state or nil
 
@@ -36,6 +41,8 @@ local function createInitialState()
         last_replacement_signature = nil,
         active_boss_engagements = {},
         pending_boss_loot_queue = {},
+        known_addon_members = {},
+        run_id_sync_token = nil,
     }
 end
 
@@ -84,6 +91,9 @@ local function persistActiveRun()
 end
 
 local startFreshRun
+local normalizeDungeonName
+local getUnitFullName
+local getTrackedGroupSize
 
 local ROLE_DAMAGER = "DAMAGER"
 local ROLE_HEALER = "HEALER"
@@ -95,28 +105,135 @@ local ITEM_QUALITY_UNCOMMON = 2
 local ITEM_QUALITY_RARE = 3
 local ITEM_QUALITY_EPIC = 4
 
--- Produces a simple UUID-like identifier that is sufficient for run identity.
-local function createRunId()
-    local template = "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx"
-    local seed = tostring(time()) .. tostring(math.random(100000, 999999))
-    local cursor = 1
+local function createHash(text)
+    local hashHigh = 5381
+    local hashLow = 52711
+    local index
+    local charCode
 
-    return string.gsub(template, "[xy]", function(token)
-        local sourceByte = string.byte(seed, cursor) or math.random(48, 102)
-        local nibble = sourceByte % 16
+    if not text then
+        return "0000000000000000"
+    end
 
-        cursor = cursor + 1
+    for index = 1, string.len(text) do
+        charCode = string.byte(text, index)
+        hashHigh = math.fmod((hashHigh * 33) + charCode, 4294967296)
+        hashLow = math.fmod((hashLow * 37) + charCode, 4294967296)
+    end
 
-        if token == "x" then
-            return string.format("%x", nibble)
-        end
+    return string.format("%08x%08x", hashHigh, hashLow)
+end
 
-        return string.format("%x", (nibble % 4) + 8)
+local function getPlayerFullName()
+    return getUnitFullName("player")
+end
+
+local function createSharedRunId(dungeonName, zoneId, recorderDate)
+    local normalizedDungeonName = normalizeDungeonName(dungeonName) or ""
+    local normalizedZoneId = tostring(zoneId or "")
+    local normalizedRecorderDate = recorderDate or date("%Y/%m/%d")
+
+    return createHash(string.format("%s|%s|%s", normalizedDungeonName, normalizedZoneId, normalizedRecorderDate))
+end
+
+local function sendAddonMessage(...)
+    if not C_ChatInfo or not C_ChatInfo.SendAddonMessage then
+        return false
+    end
+
+    C_ChatInfo.SendAddonMessage(ADDON_MESSAGE_PREFIX, table.concat({ ... }, "\t"), "PARTY")
+    return true
+end
+
+local function clearKnownAddonMembers()
+    local playerName = getPlayerFullName()
+
+    Tracker.state.known_addon_members = {}
+    if playerName then
+        Tracker.state.known_addon_members[playerName] = true
+    end
+end
+
+local function rememberAddonMember(playerName)
+    if not Tracker.state or not playerName or playerName == "" then
+        return false
+    end
+
+    Tracker.state.known_addon_members = Tracker.state.known_addon_members or {}
+    if Tracker.state.known_addon_members[playerName] then
+        return false
+    end
+
+    Tracker.state.known_addon_members[playerName] = true
+    return true
+end
+
+local function getSortedAddonMemberNames()
+    local names = {}
+    local playerName
+
+    if not Tracker.state or not Tracker.state.known_addon_members then
+        return names
+    end
+
+    for playerName in pairs(Tracker.state.known_addon_members) do
+        names[#names + 1] = playerName
+    end
+
+    table.sort(names, function(leftName, rightName)
+        return string.lower(leftName) < string.lower(rightName)
     end)
+
+    return names
+end
+
+local function getRecorderName()
+    local names = getSortedAddonMemberNames()
+
+    return names[1]
+end
+
+local function isSelfRecorder()
+    local playerName = getPlayerFullName()
+    local recorderName = getRecorderName()
+
+    return playerName ~= nil and recorderName ~= nil and string.lower(playerName) == string.lower(recorderName)
+end
+
+local function isGrouped()
+    return getTrackedGroupSize() > 1
+end
+
+local function broadcastHello()
+    local currentDungeon = Tracker.state.current_dungeon
+    local playerName = getPlayerFullName()
+
+    if not currentDungeon or not playerName or not isGrouped() then
+        return false
+    end
+
+    rememberAddonMember(playerName)
+    return sendAddonMessage(MESSAGE_TYPE_HELLO, currentDungeon.name or "", tostring(currentDungeon.zone_id or ""))
+end
+
+local function broadcastRunId(runId)
+    local currentDungeon = Tracker.state.current_dungeon
+    local activeRun = Tracker.state.active_run
+
+    if not currentDungeon or not runId or runId == "" or not isGrouped() then
+        return false
+    end
+
+    return sendAddonMessage(
+        MESSAGE_TYPE_RUN_ID,
+        currentDungeon.name or "",
+        tostring(currentDungeon.zone_id or (activeRun and activeRun.zone_id) or ""),
+        runId
+    )
 end
 
 -- Normalizes dungeon names so formatting differences do not break matching.
-local function normalizeDungeonName(name)
+normalizeDungeonName = function(name)
     if not name then
         return nil
     end
@@ -394,7 +511,7 @@ end
 -- Returns a stable player identifier for snapshotting party state. Realm is
 -- included when available so later comparison works even if duplicate names
 -- ever appear.
-local function getUnitFullName(unitToken)
+getUnitFullName = function(unitToken)
     local name, realmName = UnitName(unitToken)
 
     if not name or name == "" then
@@ -423,7 +540,7 @@ end
 
 -- Returns the current tracked group size. Raid-sized groups are allowed to
 -- report larger than five so replacement logic can explicitly ignore them.
-local function getTrackedGroupSize()
+getTrackedGroupSize = function()
     if IsInRaid and IsInRaid() and GetNumGroupMembers then
         return GetNumGroupMembers() or 0
     end
@@ -1010,6 +1127,99 @@ local function finalizePendingBossLoot()
     return changed
 end
 
+local function clearRunIdSync()
+    Tracker.state.run_id_sync_token = nil
+end
+
+local function applySharedRunId(runId, sourceName)
+    local currentDungeon = Tracker.state.current_dungeon
+    local activeRun = Tracker.state.active_run
+
+    if not runId or runId == "" or not currentDungeon or not currentDungeon.zone_id then
+        return false
+    end
+
+    if activeRun then
+        if normalizeDungeonName(activeRun.dungeon_name) ~= normalizeDungeonName(currentDungeon.name)
+            or activeRun.zone_id ~= currentDungeon.zone_id then
+            return false
+        end
+
+        if activeRun.run_id ~= runId then
+            activeRun.run_id = runId
+            persistActiveRun()
+            printMessage(string.format("adopted recorder run id %s from %s.", runId, sourceName or "group"))
+        end
+
+        return true
+    end
+
+    return startFreshRun(runId, sourceName and string.format("shared by %s", sourceName) or "shared run id")
+end
+
+local function finalizeRunIdSync(syncToken)
+    local currentDungeon = Tracker.state.current_dungeon
+    local recorderName
+    local runId
+
+    if Tracker.state.run_id_sync_token ~= syncToken then
+        return false
+    end
+
+    clearRunIdSync()
+
+    if Tracker.state.active_run or not currentDungeon or not currentDungeon.zone_id then
+        return false
+    end
+
+    recorderName = getRecorderName()
+    if isSelfRecorder() then
+        runId = createSharedRunId(currentDungeon.name, currentDungeon.zone_id, date("%Y/%m/%d"))
+        if startFreshRun(runId, "recorder generated run id") then
+            broadcastRunId(runId)
+            printMessage(string.format("acting as recorder and broadcast run id %s.", runId))
+            return true
+        end
+
+        return false
+    end
+
+    printMessage(string.format("waiting for recorder %s to share the run id.", recorderName or "unknown"))
+    return false
+end
+
+local function beginRunIdSync()
+    local currentDungeon = Tracker.state.current_dungeon
+    local syncToken
+
+    if not currentDungeon or not currentDungeon.zone_id or Tracker.state.active_run then
+        return false
+    end
+
+    if not isGrouped() then
+        return false
+    end
+
+    if Tracker.state.run_id_sync_token then
+        return true
+    end
+
+    broadcastHello()
+    syncToken = string.format("runid-%d-%d", time(), math.random(100000, 999999))
+    Tracker.state.run_id_sync_token = syncToken
+    printMessage("waiting briefly to elect the recorder.")
+
+    if C_Timer and C_Timer.After then
+        C_Timer.After(RUN_ID_SYNC_WINDOW_SECONDS, function()
+            finalizeRunIdSync(syncToken)
+        end)
+    else
+        finalizeRunIdSync(syncToken)
+    end
+
+    return true
+end
+
 -- Stores the active run in memory and persists the same state into the
 -- database layer so later rebuild steps can rely on one shared shape.
 local function setActiveRun(runId, dungeonName, startedAt, zoneId, party, hardcore)
@@ -1127,12 +1337,16 @@ local function transitionToNewRunForZoneShift()
         currentDungeon.zone_id
     ))
 
+    if beginRunIdSync() then
+        return false
+    end
+
     return startFreshRun()
 end
 
 -- Starts a fresh run once zone_id has been resolved and no matching stored run
 -- exists for the current dungeon context.
-startFreshRun = function()
+startFreshRun = function(providedRunId, sourceLabel)
     local currentDungeon = Tracker.state.current_dungeon
     local startedAt
     local runId
@@ -1144,12 +1358,17 @@ startFreshRun = function()
     end
 
     startedAt = time()
-    runId = createRunId()
+    runId = providedRunId or createSharedRunId(currentDungeon.name, currentDungeon.zone_id, date("%Y/%m/%d"))
     party = collectPartySnapshot()
     hardcore = isCurrentRealmHardcore()
 
     setActiveRun(runId, currentDungeon.name, startedAt, currentDungeon.zone_id, party, hardcore)
-    printMessage(string.format("run started for %s with zone id %d.", currentDungeon.name, currentDungeon.zone_id))
+    printMessage(string.format(
+        "run started for %s with zone id %d%s.",
+        currentDungeon.name,
+        currentDungeon.zone_id,
+        sourceLabel and string.format(" (%s)", sourceLabel) or ""
+    ))
     return true
 end
 
@@ -1168,10 +1387,64 @@ local function resolveRunForCurrentDungeon()
 
     if reactivateKnownRunByDungeon(currentDungeon.name, currentDungeon.zone_id) then
         printMessage(string.format("reactivated run for %s.", currentDungeon.name))
+        if isSelfRecorder() and Tracker.state.active_run and Tracker.state.active_run.run_id then
+            broadcastRunId(Tracker.state.active_run.run_id)
+        end
         return true
     end
 
+    if beginRunIdSync() then
+        return false
+    end
+
     return startFreshRun()
+end
+
+local function handleAddonMessage(prefix, message, _, sender)
+    local currentDungeon = Tracker.state.current_dungeon
+    local activeRun = Tracker.state.active_run
+    local messageType
+    local dungeonName
+    local zoneIdText
+    local runId
+    local zoneId
+
+    if prefix ~= ADDON_MESSAGE_PREFIX or not message or not sender or sender == "" then
+        return
+    end
+
+    messageType, dungeonName, zoneIdText, runId = strsplit("\t", message)
+    zoneId = tonumber(zoneIdText)
+
+    if not currentDungeon and not activeRun then
+        return
+    end
+
+    if currentDungeon and dungeonName and normalizeDungeonName(dungeonName) ~= normalizeDungeonName(currentDungeon.name) then
+        return
+    end
+
+    rememberAddonMember(sender)
+
+    if messageType == MESSAGE_TYPE_HELLO then
+        if activeRun and activeRun.run_id and isSelfRecorder() then
+            broadcastRunId(activeRun.run_id)
+            printMessage(string.format("shared run id %s with %s.", activeRun.run_id, sender))
+        end
+
+        return
+    end
+
+    if messageType ~= MESSAGE_TYPE_RUN_ID or not runId or runId == "" then
+        return
+    end
+
+    if not currentDungeon or not currentDungeon.zone_id or not zoneId or currentDungeon.zone_id ~= zoneId then
+        return
+    end
+
+    clearRunIdSync()
+    applySharedRunId(runId, sender)
 end
 
 -- Detects when a full five-player run has one or more genuinely new names in
@@ -1191,6 +1464,14 @@ local function handleGroupRosterUpdate()
     local member
 
     Tracker.state.last_group_size = currentGroupSize
+
+    if Tracker.state.current_dungeon and isGrouped() then
+        broadcastHello()
+
+        if Tracker.state.active_run and Tracker.state.active_run.run_id and isSelfRecorder() then
+            broadcastRunId(Tracker.state.active_run.run_id)
+        end
+    end
 
     if not activeRun or not activeRun.party then
         return
@@ -1378,6 +1659,10 @@ function Tracker.GetPendingBossQueue()
     return queue
 end
 
+function Tracker.GetRecorderName()
+    return getRecorderName()
+end
+
 -- Completes the current active run when the player enters a different
 -- supported dungeon context. That includes either a different instance of the
 -- same dungeon or a completely different dungeon.
@@ -1430,6 +1715,8 @@ local function updateCurrentDungeon()
         Tracker.state.last_zone_npc_id = nil
         Tracker.state.active_boss_engagements = {}
         Tracker.state.pending_boss_loot_queue = {}
+        clearKnownAddonMembers()
+        clearRunIdSync()
         clearOutsideInstanceTimeout()
 
         if DungeonOracle.UI and DungeonOracle.UI.ResetTrackerLogs then
@@ -1443,6 +1730,8 @@ local function updateCurrentDungeon()
         printMessage(string.format("detected supported dungeon: %s.", dungeonDefinition.name))
     else
         Tracker.state.current_dungeon = nil
+        clearKnownAddonMembers()
+        clearRunIdSync()
 
         if Tracker.state.active_run and isPlayerDeadOrGhost() then
             recordFailedBossEngagementsOnRelease()
@@ -1469,7 +1758,12 @@ function Tracker.Initialize(eventFrame)
         DungeonOracle.Database.Initialize()
     end
 
+    if C_ChatInfo and C_ChatInfo.RegisterAddonMessagePrefix then
+        C_ChatInfo.RegisterAddonMessagePrefix(ADDON_MESSAGE_PREFIX)
+    end
+
     Tracker.state = createInitialState()
+    clearKnownAddonMembers()
 
     if DungeonOracle.Database and DungeonOracle.Database.GetActiveRun then
         persistedActiveRun = DungeonOracle.Database.GetActiveRun()
@@ -1521,6 +1815,11 @@ function Tracker.HandleEvent(event, ...)
             restorePendingBossLootQueueFromActiveRun()
         end
         completeActiveRunForDungeonTransition()
+        if Tracker.state.current_dungeon and isGrouped() then
+            broadcastHello()
+        end
+    elseif event == "CHAT_MSG_ADDON" then
+        handleAddonMessage(...)
     elseif event == "GROUP_ROSTER_UPDATE" then
         handleGroupRosterUpdate()
     elseif event == "PLAYER_LEVEL_UP" then
