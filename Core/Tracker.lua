@@ -12,7 +12,9 @@ local TRACKER_EVENTS = {
     "ZONE_CHANGED_NEW_AREA",
     "GROUP_ROSTER_UPDATE",
     "CHAT_MSG_ADDON",
+    "START_LOOT_ROLL",
     "PLAYER_LEVEL_UP",
+    "PLAYER_MONEY",
     "PLAYER_ALIVE",
     "PLAYER_UNGHOST",
     "PLAYER_REGEN_DISABLED",
@@ -41,6 +43,7 @@ local function createInitialState()
         last_replacement_signature = nil,
         active_boss_engagements = {},
         pending_boss_loot_queue = {},
+        recent_loot_rolls = {},
         known_addon_members = {},
         run_id_sync_token = nil,
     }
@@ -1017,6 +1020,46 @@ local function getItemIdFromLootMessage(message)
     return tonumber(itemId)
 end
 
+local function getItemIdFromLootRoll(rollId)
+    local itemLink
+    local itemId
+
+    if not rollId or not GetLootRollItemLink then
+        return nil
+    end
+
+    itemLink = GetLootRollItemLink(rollId)
+    itemId = itemLink and string.match(itemLink, ITEM_LINK_ID_PATTERN) or nil
+
+    return tonumber(itemId)
+end
+
+local function shouldProcessLootRoll(rollId, itemId)
+    local recentRolls
+    local previousEntry
+
+    if not Tracker.state or not rollId or not itemId then
+        return false
+    end
+
+    Tracker.state.recent_loot_rolls = Tracker.state.recent_loot_rolls or {}
+    recentRolls = Tracker.state.recent_loot_rolls
+    previousEntry = recentRolls[rollId]
+
+    if previousEntry
+        and previousEntry.item_id == itemId
+        and (time() - (previousEntry.seen_at or 0)) <= 10 then
+        return false
+    end
+
+    recentRolls[rollId] = {
+        item_id = itemId,
+        seen_at = time(),
+    }
+
+    return true
+end
+
 local function isTrackedBossLootItem(itemId)
     local bossIds = getTrackedBossIdsForLoot(itemId)
 
@@ -1050,6 +1093,30 @@ local function recordNonBossLootDrop(itemId)
 
     persistActiveRun()
     printMessage(string.format("recorded non-boss loot drop %d (quality %d).", itemId, itemQuality))
+    return true
+end
+
+local function updateRunMoney()
+    local activeRun = Tracker.state.active_run
+    local currentMoney
+    local startingMoney
+    local goldEarned
+
+    if not activeRun or not GetMoney then
+        return false
+    end
+
+    currentMoney = GetMoney()
+    startingMoney = tonumber(activeRun.starting_money) or currentMoney or 0
+    goldEarned = (currentMoney or 0) - startingMoney
+
+    if goldEarned == (tonumber(activeRun.gold_earned) or 0) then
+        return false
+    end
+
+    activeRun.starting_money = startingMoney
+    activeRun.gold_earned = goldEarned
+    persistActiveRun()
     return true
 end
 
@@ -1236,6 +1303,8 @@ local function setActiveRun(runId, dungeonName, startedAt, zoneId, party, hardco
         first_death = nil,
         boss_timer = {},
         boss_loot = {},
+        starting_money = GetMoney and GetMoney() or 0,
+        gold_earned = 0,
         green_drops = 0,
         blue_drops = 0,
         purple_drops = 0,
@@ -1246,6 +1315,7 @@ local function setActiveRun(runId, dungeonName, startedAt, zoneId, party, hardco
     Tracker.state.last_replacement_signature = buildPartyNameSignature(Tracker.state.active_run.party)
     Tracker.state.active_boss_engagements = {}
     Tracker.state.pending_boss_loot_queue = {}
+    Tracker.state.recent_loot_rolls = {}
     persistActiveRun()
 end
 
@@ -1276,6 +1346,8 @@ local function reactivateKnownRunByDungeon(dungeonName, zoneId)
         first_death = existingRun.first_death,
         boss_timer = existingRun.boss_timer or {},
         boss_loot = existingRun.boss_loot or {},
+        starting_money = existingRun.starting_money or (GetMoney and GetMoney() or 0),
+        gold_earned = existingRun.gold_earned or 0,
         green_drops = existingRun.green_drops or 0,
         blue_drops = existingRun.blue_drops or 0,
         purple_drops = existingRun.purple_drops or 0,
@@ -1286,6 +1358,7 @@ local function reactivateKnownRunByDungeon(dungeonName, zoneId)
     Tracker.state.last_replacement_signature = buildPartyNameSignature(Tracker.state.active_run.party)
     Tracker.state.active_boss_engagements = {}
     Tracker.state.pending_boss_loot_queue = existingRun.pending_boss_loot_queue or {}
+    Tracker.state.recent_loot_rolls = {}
     persistActiveRun()
     return true
 end
@@ -1329,6 +1402,7 @@ local function transitionToNewRunForZoneShift()
     Tracker.state.active_run = nil
     Tracker.state.active_boss_engagements = {}
     Tracker.state.pending_boss_loot_queue = {}
+    Tracker.state.recent_loot_rolls = {}
     printMessage(string.format(
         "completed run %s because %s changed from zone id %d to %d.",
         previousRunId or "-",
@@ -1564,6 +1638,7 @@ local function finalizeOutsideInstanceTimeout(timeoutToken)
     Tracker.state.active_run = nil
     Tracker.state.active_boss_engagements = {}
     Tracker.state.pending_boss_loot_queue = {}
+    Tracker.state.recent_loot_rolls = {}
     printMessage("previous run completed after being outside all instances for 30 seconds.")
 
     if DungeonOracle.UI and DungeonOracle.UI.HideTrackerWindow then
@@ -1675,6 +1750,7 @@ local function completeActiveRunForDungeonTransition()
     Tracker.state.active_run = nil
     Tracker.state.active_boss_engagements = {}
     Tracker.state.pending_boss_loot_queue = {}
+    Tracker.state.recent_loot_rolls = {}
     printMessage(string.format("previous run completed because %s was entered.", currentDungeon.name))
 
     return true
@@ -1695,6 +1771,7 @@ local function updateCurrentDungeon()
         Tracker.state.last_zone_npc_id = nil
         Tracker.state.active_boss_engagements = {}
         Tracker.state.pending_boss_loot_queue = {}
+        Tracker.state.recent_loot_rolls = {}
         clearKnownAddonMembers()
         clearRunIdSync()
         clearOutsideInstanceTimeout()
@@ -1807,6 +1884,8 @@ function Tracker.HandleEvent(event, ...)
             persistActiveRun()
             printMessage("party levels updated after a detected level up.")
         end
+    elseif event == "PLAYER_MONEY" then
+        updateRunMoney()
     elseif event == "PLAYER_ALIVE" or event == "PLAYER_UNGHOST" then
         if Tracker.state.active_run then
             updateCurrentDungeon()
@@ -1833,14 +1912,27 @@ function Tracker.HandleEvent(event, ...)
                 resolveRunForCurrentDungeon()
             end
         end
+    elseif event == "START_LOOT_ROLL" then
+        local rollId = ...
+        local itemId = getItemIdFromLootRoll(rollId)
+
+        if itemId and shouldProcessLootRoll(rollId, itemId) then
+            if isTrackedBossLootItem(itemId) then
+                recordBossLoot(itemId)
+            else
+                recordNonBossLootDrop(itemId)
+            end
+        end
     elseif event == "CHAT_MSG_LOOT" then
         local lootMessage = ...
         local itemId = getItemIdFromLootMessage(lootMessage)
 
+        if getTrackedGroupSize() > 1 then
+            return
+        end
+
         if itemId and isTrackedBossLootItem(itemId) then
             recordBossLoot(itemId)
-        elseif itemId then
-            recordNonBossLootDrop(itemId)
         end
     elseif event == "COMBAT_LOG_EVENT_UNFILTERED" then
         local _, subEvent, _, sourceGUID, _, _, _, destGUID, destName = CombatLogGetCurrentEventInfo()

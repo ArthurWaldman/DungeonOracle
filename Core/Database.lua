@@ -52,6 +52,8 @@ DungeonOracle.Database = DungeonOracle.Database or {}
 --         boss_loot = {
 --             [1716] = 5191, -- -1 means no tracked loot was resolved before the run ended
 --         },
+--         starting_money = 245512,
+--         gold_earned = -1324,
 --         green_drops = 3,
 --         blue_drops = 1,
 --         purple_drops = 0,
@@ -103,6 +105,8 @@ DungeonOracle.Database = DungeonOracle.Database or {}
 --             boss_loot = {
 --                 [1716] = 5191, -- -1 means no tracked loot was resolved before the run ended
 --             },
+--             starting_money = 245512,
+--             gold_earned = -1324,
 --             green_drops = 3,
 --             blue_drops = 1,
 --             purple_drops = 0,
@@ -270,6 +274,16 @@ local function sanitizeDropCount(value)
     return math.floor(value)
 end
 
+local function sanitizeMoneyValue(value)
+    value = tonumber(value) or 0
+
+    if value >= 0 then
+        return math.floor(value)
+    end
+
+    return math.ceil(value)
+end
+
 local function copyRunSnapshot(runRecord)
     if not runRecord then
         return nil
@@ -289,6 +303,8 @@ local function copyRunSnapshot(runRecord)
         first_death = copyFirstDeathSnapshot(runRecord.first_death),
         boss_timer = copyBossTimerSnapshot(runRecord.boss_timer),
         boss_loot = copyBossLootSnapshot(runRecord.boss_loot),
+        starting_money = sanitizeMoneyValue(runRecord.starting_money),
+        gold_earned = sanitizeMoneyValue(runRecord.gold_earned),
         green_drops = sanitizeDropCount(runRecord.green_drops),
         blue_drops = sanitizeDropCount(runRecord.blue_drops),
         purple_drops = sanitizeDropCount(runRecord.purple_drops),
@@ -352,6 +368,8 @@ local function createOrderedCompletedRun(activeRun, endedAt)
         first_death = copyFirstDeathSnapshot(activeRun.first_death),
         boss_timer = copyBossTimerSnapshot(activeRun.boss_timer),
         boss_loot = copyBossLootSnapshot(activeRun.boss_loot),
+        starting_money = sanitizeMoneyValue(activeRun.starting_money),
+        gold_earned = sanitizeMoneyValue(activeRun.gold_earned),
         green_drops = sanitizeDropCount(activeRun.green_drops),
         blue_drops = sanitizeDropCount(activeRun.blue_drops),
         purple_drops = sanitizeDropCount(activeRun.purple_drops),
@@ -409,6 +427,8 @@ function Database.SetActiveRun(activeRun)
             first_death = copyFirstDeathSnapshot(activeRun.first_death),
             boss_timer = copyBossTimerSnapshot(activeRun.boss_timer),
             boss_loot = copyBossLootSnapshot(activeRun.boss_loot),
+            starting_money = sanitizeMoneyValue(activeRun.starting_money),
+            gold_earned = sanitizeMoneyValue(activeRun.gold_earned),
             green_drops = sanitizeDropCount(activeRun.green_drops),
             blue_drops = sanitizeDropCount(activeRun.blue_drops),
             purple_drops = sanitizeDropCount(activeRun.purple_drops),
@@ -444,6 +464,8 @@ function Database.GetActiveRun()
         first_death = copyFirstDeathSnapshot(DungeonOracleDB.active_run.first_death),
         boss_timer = copyBossTimerSnapshot(DungeonOracleDB.active_run.boss_timer),
         boss_loot = copyBossLootSnapshot(DungeonOracleDB.active_run.boss_loot),
+        starting_money = sanitizeMoneyValue(DungeonOracleDB.active_run.starting_money),
+        gold_earned = sanitizeMoneyValue(DungeonOracleDB.active_run.gold_earned),
         green_drops = sanitizeDropCount(DungeonOracleDB.active_run.green_drops),
         blue_drops = sanitizeDropCount(DungeonOracleDB.active_run.blue_drops),
         purple_drops = sanitizeDropCount(DungeonOracleDB.active_run.purple_drops),

@@ -20,10 +20,10 @@ local WINDOW_WIDTH = 460
 local WINDOW_HEIGHT = 404
 local MINIMAP_RADIUS = 80
 local MINIMAP_ICON = "Interface\\Icons\\INV_Misc_Note_01"
-local UPLOAD_URL = "https://www.dropbox.com/request/2okeud4m0vplo6e8nsmk"
+local UPLOAD_URL = "https://www.dropbox.com/request/bhj770kopf5k3hpdhzrc"
 local PATH_FONT_SIZE = 9
 local TRACKER_WINDOW_WIDTH = 285
-local TRACKER_WINDOW_HEIGHT = 156
+local TRACKER_WINDOW_HEIGHT = 174
 local TRACKER_LOG_LINE_LIMIT = 8
 
 -- Tab definitions drive both the clickable tab buttons and the associated
@@ -129,6 +129,41 @@ local function getColoredLootCounterText(greenDrops, blueDrops, purpleDrops)
         tonumber(greenDrops) or 0,
         tonumber(blueDrops) or 0,
         tonumber(purpleDrops) or 0
+    )
+end
+
+local function getMoneyDisplayText(copperValue)
+    local totalCopper = tonumber(copperValue) or 0
+    local isNegative = totalCopper < 0
+    local absoluteCopper = math.abs(totalCopper)
+    local gold = math.floor(absoluteCopper / 10000)
+    local silver = math.floor(math.fmod(absoluteCopper, 10000) / 100)
+    local copper = math.fmod(absoluteCopper, 100)
+    local signPrefix = isNegative and "-" or ""
+
+    if gold > 0 then
+        return string.format(
+            "%s%d|TInterface\\MoneyFrame\\UI-GoldIcon:0:0:2:0|t %d|TInterface\\MoneyFrame\\UI-SilverIcon:0:0:2:0|t %d|TInterface\\MoneyFrame\\UI-CopperIcon:0:0:2:0|t",
+            signPrefix,
+            gold,
+            silver,
+            copper
+        )
+    end
+
+    if silver > 0 then
+        return string.format(
+            "%s%d|TInterface\\MoneyFrame\\UI-SilverIcon:0:0:2:0|t %d|TInterface\\MoneyFrame\\UI-CopperIcon:0:0:2:0|t",
+            signPrefix,
+            silver,
+            copper
+        )
+    end
+
+    return string.format(
+        "%s%d|TInterface\\MoneyFrame\\UI-CopperIcon:0:0:2:0|t",
+        signPrefix,
+        copper
     )
 end
 
@@ -419,8 +454,12 @@ local function createTrackerWindow()
     lootCounterText:SetPoint("TOPLEFT", runIdText, "BOTTOMLEFT", 0, -6)
     lootCounterText:SetText(getColoredLootCounterText(0, 0, 0))
 
+    local moneyText = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    moneyText:SetPoint("TOPLEFT", lootCounterText, "BOTTOMLEFT", 0, -6)
+    moneyText:SetText("Money: 0|TInterface\\MoneyFrame\\UI-CopperIcon:0:0:2:0|t")
+
     local logText = frame:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-    logText:SetPoint("TOPLEFT", lootCounterText, "BOTTOMLEFT", 0, -8)
+    logText:SetPoint("TOPLEFT", moneyText, "BOTTOMLEFT", 0, -8)
     logText:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -10, 10)
     logText:SetJustifyH("LEFT")
     logText:SetJustifyV("TOP")
@@ -439,6 +478,7 @@ local function createTrackerWindow()
     UI.trackerRecorderText = recorderText
     UI.trackerRunIdText = runIdText
     UI.trackerLootCounterText = lootCounterText
+    UI.trackerMoneyText = moneyText
     UI.trackerLogText = logText
     UI.trackerLogLines = { "No loot detected" }
 
@@ -572,6 +612,17 @@ local function createTrackerWindow()
                 ))
             else
                 UI.trackerLootCounterText:SetText(getColoredLootCounterText(0, 0, 0))
+            end
+        end
+
+        if UI.trackerMoneyText then
+            if activeRun then
+                UI.trackerMoneyText:SetText(string.format(
+                    "Money: %s",
+                    getMoneyDisplayText(activeRun.gold_earned)
+                ))
+            else
+                UI.trackerMoneyText:SetText("Money: 0|TInterface\\MoneyFrame\\UI-CopperIcon:0:0:2:0|t")
             end
         end
     end)
