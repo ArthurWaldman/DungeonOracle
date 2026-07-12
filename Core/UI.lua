@@ -23,7 +23,7 @@ local MINIMAP_ICON = "Interface\\Icons\\INV_Misc_Note_01"
 local UPLOAD_URL = "https://www.dropbox.com/request/bhj770kopf5k3hpdhzrc"
 local PATH_FONT_SIZE = 9
 local TRACKER_WINDOW_WIDTH = 285
-local TRACKER_WINDOW_HEIGHT = 174
+local TRACKER_WINDOW_HEIGHT = 192
 local TRACKER_LOG_LINE_LIMIT = 8
 
 -- Tab definitions drive both the clickable tab buttons and the associated
@@ -458,8 +458,12 @@ local function createTrackerWindow()
     moneyText:SetPoint("TOPLEFT", lootCounterText, "BOTTOMLEFT", 0, -6)
     moneyText:SetText("Money: 0|TInterface\\MoneyFrame\\UI-CopperIcon:0:0:2:0|t")
 
+    local xpText = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    xpText:SetPoint("TOPLEFT", moneyText, "BOTTOMLEFT", 0, -6)
+    xpText:SetText("XP Gained: 0")
+
     local logText = frame:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-    logText:SetPoint("TOPLEFT", moneyText, "BOTTOMLEFT", 0, -8)
+    logText:SetPoint("TOPLEFT", xpText, "BOTTOMLEFT", 0, -8)
     logText:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -10, 10)
     logText:SetJustifyH("LEFT")
     logText:SetJustifyV("TOP")
@@ -479,6 +483,7 @@ local function createTrackerWindow()
     UI.trackerRunIdText = runIdText
     UI.trackerLootCounterText = lootCounterText
     UI.trackerMoneyText = moneyText
+    UI.trackerXpText = xpText
     UI.trackerLogText = logText
     UI.trackerLogLines = { "No loot detected" }
 
@@ -623,6 +628,17 @@ local function createTrackerWindow()
                 ))
             else
                 UI.trackerMoneyText:SetText("Money: 0|TInterface\\MoneyFrame\\UI-CopperIcon:0:0:2:0|t")
+            end
+        end
+
+        if UI.trackerXpText then
+            if activeRun then
+                UI.trackerXpText:SetText(string.format(
+                    "XP Gained: %d",
+                    tonumber(activeRun.xp_gained) or 0
+                ))
+            else
+                UI.trackerXpText:SetText("XP Gained: 0")
             end
         end
     end)
@@ -873,6 +889,26 @@ function UI.RefreshMyDataPane()
             1
         )
         GameTooltip:AddDoubleLine("Bosses Beaten", tostring(getBossBeatenCount(runRecord)), 1, 1, 1, 1, 1, 1)
+        GameTooltip:AddDoubleLine(
+            "Money",
+            getMoneyDisplayText(runRecord.gold_earned),
+            1,
+            1,
+            1,
+            1,
+            1,
+            1
+        )
+        GameTooltip:AddDoubleLine(
+            "XP Gained",
+            tostring(tonumber(runRecord.xp_gained) or 0),
+            1,
+            1,
+            1,
+            1,
+            1,
+            1
+        )
 
         GameTooltip:AddLine(" ")
         GameTooltip:AddLine("Boss Loot:", 1, 0.82, 0)

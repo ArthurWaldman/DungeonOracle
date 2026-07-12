@@ -14,6 +14,7 @@ local TRACKER_EVENTS = {
     "CHAT_MSG_ADDON",
     "START_LOOT_ROLL",
     "PLAYER_LEVEL_UP",
+    "PLAYER_XP_UPDATE",
     "PLAYER_MONEY",
     "PLAYER_ALIVE",
     "PLAYER_UNGHOST",
@@ -1120,6 +1121,47 @@ local function updateRunMoney()
     return true
 end
 
+local function updateRunExperience()
+    local activeRun = Tracker.state.active_run
+    local currentXp
+    local currentLevel
+    local currentXpMax
+    local lastXp
+    local lastLevel
+    local lastXpMax
+    local gainedXp = 0
+
+    if not activeRun or not UnitXP or not UnitLevel or not UnitXPMax then
+        return false
+    end
+
+    currentXp = UnitXP("player") or 0
+    currentLevel = UnitLevel("player") or 0
+    currentXpMax = UnitXPMax("player") or 0
+    lastXp = tonumber(activeRun.last_xp) or currentXp
+    lastLevel = tonumber(activeRun.last_level) or currentLevel
+    lastXpMax = tonumber(activeRun.last_xp_max) or currentXpMax
+
+    if currentLevel > lastLevel then
+        gainedXp = math.max(0, lastXpMax - lastXp) + currentXp
+    elseif currentLevel == lastLevel and currentXp >= lastXp then
+        gainedXp = currentXp - lastXp
+    end
+
+    activeRun.last_xp = currentXp
+    activeRun.last_level = currentLevel
+    activeRun.last_xp_max = currentXpMax
+
+    if gainedXp <= 0 then
+        persistActiveRun()
+        return false
+    end
+
+    activeRun.xp_gained = (tonumber(activeRun.xp_gained) or 0) + gainedXp
+    persistActiveRun()
+    return true
+end
+
 local function recordBossLoot(itemId)
     local activeRun = Tracker.state.active_run
     local bossIds
@@ -1305,6 +1347,11 @@ local function setActiveRun(runId, dungeonName, startedAt, zoneId, party, hardco
         boss_loot = {},
         starting_money = GetMoney and GetMoney() or 0,
         gold_earned = 0,
+        starting_xp = UnitXP and UnitXP("player") or 0,
+        xp_gained = 0,
+        last_xp = UnitXP and UnitXP("player") or 0,
+        last_level = UnitLevel and UnitLevel("player") or 0,
+        last_xp_max = UnitXPMax and UnitXPMax("player") or 0,
         green_drops = 0,
         blue_drops = 0,
         purple_drops = 0,
@@ -1348,6 +1395,11 @@ local function reactivateKnownRunByDungeon(dungeonName, zoneId)
         boss_loot = existingRun.boss_loot or {},
         starting_money = existingRun.starting_money or (GetMoney and GetMoney() or 0),
         gold_earned = existingRun.gold_earned or 0,
+        starting_xp = existingRun.starting_xp or (UnitXP and UnitXP("player") or 0),
+        xp_gained = existingRun.xp_gained or 0,
+        last_xp = existingRun.last_xp or (UnitXP and UnitXP("player") or 0),
+        last_level = existingRun.last_level or (UnitLevel and UnitLevel("player") or 0),
+        last_xp_max = existingRun.last_xp_max or (UnitXPMax and UnitXPMax("player") or 0),
         green_drops = existingRun.green_drops or 0,
         blue_drops = existingRun.blue_drops or 0,
         purple_drops = existingRun.purple_drops or 0,
@@ -1884,6 +1936,9 @@ function Tracker.HandleEvent(event, ...)
             persistActiveRun()
             printMessage("party levels updated after a detected level up.")
         end
+        updateRunExperience()
+    elseif event == "PLAYER_XP_UPDATE" then
+        updateRunExperience()
     elseif event == "PLAYER_MONEY" then
         updateRunMoney()
     elseif event == "PLAYER_ALIVE" or event == "PLAYER_UNGHOST" then
@@ -1971,6 +2026,14 @@ function Tracker.HandleEvent(event, ...)
 
             if destBoss then
                 recordBossEngagementEnd(destBoss.id, destBoss.name)
+            end
+
+            if Tracker.state.active_run and C_Timer and C_Timer.After then
+                C_Timer.After(0, function()
+                    updateRunExperience()
+                end)
+            elseif Tracker.state.active_run then
+                updateRunExperience()
             end
         end
     end

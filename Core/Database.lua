@@ -54,6 +54,8 @@ DungeonOracle.Database = DungeonOracle.Database or {}
 --         },
 --         starting_money = 245512,
 --         gold_earned = -1324,
+--         starting_xp = 12450,
+--         xp_gained = 820,
 --         green_drops = 3,
 --         blue_drops = 1,
 --         purple_drops = 0,
@@ -107,6 +109,7 @@ DungeonOracle.Database = DungeonOracle.Database or {}
 --             },
 --             starting_money = 245512,
 --             gold_earned = -1324,
+--             xp_gained = 820,
 --             green_drops = 3,
 --             blue_drops = 1,
 --             purple_drops = 0,
@@ -284,6 +287,16 @@ local function sanitizeMoneyValue(value)
     return math.ceil(value)
 end
 
+local function sanitizeExperienceValue(value)
+    value = tonumber(value) or 0
+
+    if value < 0 then
+        return 0
+    end
+
+    return math.floor(value)
+end
+
 local function copyRunSnapshot(runRecord)
     if not runRecord then
         return nil
@@ -305,6 +318,8 @@ local function copyRunSnapshot(runRecord)
         boss_loot = copyBossLootSnapshot(runRecord.boss_loot),
         starting_money = sanitizeMoneyValue(runRecord.starting_money),
         gold_earned = sanitizeMoneyValue(runRecord.gold_earned),
+        starting_xp = sanitizeExperienceValue(runRecord.starting_xp),
+        xp_gained = sanitizeExperienceValue(runRecord.xp_gained),
         green_drops = sanitizeDropCount(runRecord.green_drops),
         blue_drops = sanitizeDropCount(runRecord.blue_drops),
         purple_drops = sanitizeDropCount(runRecord.purple_drops),
@@ -370,6 +385,7 @@ local function createOrderedCompletedRun(activeRun, endedAt)
         boss_loot = copyBossLootSnapshot(activeRun.boss_loot),
         starting_money = sanitizeMoneyValue(activeRun.starting_money),
         gold_earned = sanitizeMoneyValue(activeRun.gold_earned),
+        xp_gained = sanitizeExperienceValue(activeRun.xp_gained),
         green_drops = sanitizeDropCount(activeRun.green_drops),
         blue_drops = sanitizeDropCount(activeRun.blue_drops),
         purple_drops = sanitizeDropCount(activeRun.purple_drops),
@@ -429,10 +445,15 @@ function Database.SetActiveRun(activeRun)
             boss_loot = copyBossLootSnapshot(activeRun.boss_loot),
             starting_money = sanitizeMoneyValue(activeRun.starting_money),
             gold_earned = sanitizeMoneyValue(activeRun.gold_earned),
+            starting_xp = sanitizeExperienceValue(activeRun.starting_xp),
+            xp_gained = sanitizeExperienceValue(activeRun.xp_gained),
             green_drops = sanitizeDropCount(activeRun.green_drops),
             blue_drops = sanitizeDropCount(activeRun.blue_drops),
             purple_drops = sanitizeDropCount(activeRun.purple_drops),
             pending_boss_loot_queue = copyPendingBossLootQueueSnapshot(activeRun.pending_boss_loot_queue),
+            last_xp = sanitizeExperienceValue(activeRun.last_xp),
+            last_level = sanitizeExperienceValue(activeRun.last_level),
+            last_xp_max = sanitizeExperienceValue(activeRun.last_xp_max),
         }
     else
         DungeonOracleDB.active_run = nil
@@ -466,10 +487,15 @@ function Database.GetActiveRun()
         boss_loot = copyBossLootSnapshot(DungeonOracleDB.active_run.boss_loot),
         starting_money = sanitizeMoneyValue(DungeonOracleDB.active_run.starting_money),
         gold_earned = sanitizeMoneyValue(DungeonOracleDB.active_run.gold_earned),
+        starting_xp = sanitizeExperienceValue(DungeonOracleDB.active_run.starting_xp),
+        xp_gained = sanitizeExperienceValue(DungeonOracleDB.active_run.xp_gained),
         green_drops = sanitizeDropCount(DungeonOracleDB.active_run.green_drops),
         blue_drops = sanitizeDropCount(DungeonOracleDB.active_run.blue_drops),
         purple_drops = sanitizeDropCount(DungeonOracleDB.active_run.purple_drops),
         pending_boss_loot_queue = copyPendingBossLootQueueSnapshot(DungeonOracleDB.active_run.pending_boss_loot_queue),
+        last_xp = sanitizeExperienceValue(DungeonOracleDB.active_run.last_xp),
+        last_level = sanitizeExperienceValue(DungeonOracleDB.active_run.last_level),
+        last_xp_max = sanitizeExperienceValue(DungeonOracleDB.active_run.last_xp_max),
     }
 end
 
