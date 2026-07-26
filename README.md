@@ -1,34 +1,242 @@
 # DungeonOracle
 
-DungeonOracle is a World of Warcraft Classic Era addon for collecting structured dungeon run data for later offline analysis.
+DungeonOracle is a World of Warcraft Classic Era addon for recording structured dungeon run data for later offline analysis.
 
-The addon currently focuses on a tight local-only flow:
-- detect when the player enters a supported dungeon
-- resolve a Nova-style `zone_id` from in-instance GUIDs
-- start or reactivate a run only after that `zone_id` is known
-- persist one active run and archive completed runs
-- show live run state in a compact in-dungeon tracker window
+It tracks runs locally in SavedVariables, shows live state in-game, and coordinates a shared `run_id` across addon users in the same party so separately collected logs can be merged later.
 
-## Current Scope
+## Feature Overview
 
-This branch is intentionally narrow.
+DungeonOracle currently supports:
+- supported-dungeon detection
+- Nova-style `zone_id` resolution from in-instance GUIDs
+- run continuation, reactivation, and same-dungeon new-instance detection using `dungeon_name` + `zone_id`
+- 30-second outside-instance completion
+- shared `run_id` generation and distribution through a recorder-election pattern
+- party snapshot capture at run start
+- replacement detection for full five-player runs
+- Hardcore realm tagging
+- party death tracking
+- first-death tracking
+- boss kill timers
+- boss loot mapping
+- non-boss loot rarity counters
+- live money tracking
+- live XP gain tracking
+- minimap launcher button with drag support
+- compact in-dungeon tracker window
+- main addon window with `My Data`, `Upload Instructions`, and `Settings` tabs
+- hover tooltips for active and completed runs
+- manual SavedVariables upload flow
 
-What it does now:
-- tracks supported dungeon entry
-- resolves `zone_id`
-- starts a new run when a valid dungeon + `zone_id` context is established
-- reactivates a stored run when `dungeon_name` and `zone_id` match
-- ends a run when the player remains outside the dungeon for 30 seconds
-- ends the current run and starts a new one when the player enters the same dungeon with a different `zone_id`
-- stores completed runs in SavedVariables
+## Current Run Lifecycle
 
-What it does not do now:
-- addon-to-addon sharing
-- party analytics
-- death analytics
-- loot analytics
-- boss timing
-- upload automation
+DungeonOracle follows this runtime flow:
+
+1. The player enters a supported dungeon.
+2. The tracker waits until it resolves a valid `zone_id` from a dungeon NPC GUID.
+3. Once `zone_id` is known, the tracker decides whether to:
+   - continue the current active run
+   - reactivate a stored run whose `dungeon_name` and `zone_id` match
+   - complete the old run and start a new one if the same dungeon now has a different `zone_id`
+   - start a fresh run if no matching run exists
+4. If multiple party members have the addon, they briefly elect a recorder.
+5. The recorder generates a shared `run_id` from:
+   - normalized dungeon name
+   - `zone_id`
+   - recorder date in `yyyy/mm/dd`
+6. The recorder broadcasts that `run_id` so other addon users in the party can adopt it.
+7. If the player leaves the dungeon alive, a 30-second outside-instance timer begins.
+8. If the player returns before the timer expires, the run continues.
+9. If the timer expires, the run is archived into `records`.
+
+## Tracked Run Data
+
+Each run can record:
+- `dungeon_name`
+- `run_id`
+- `zone_id`
+- `started_at`
+- `outside_instance_started_at`
+- `ended_at`
+- `hardcore`
+- `party`
+- `replacements`
+- `deaths`
+- `first_death`
+- `boss_timer`
+- `boss_loot`
+- `starting_money`
+- `gold_earned`
+- `starting_xp`
+- `xp_gained`
+- `green_drops`
+- `blue_drops`
+- `purple_drops`
+- `pending_boss_loot_queue` on the active run only
+
+### Field Notes
+
+- `run_id`
+  A shared hash-based identifier used to align runs collected by multiple addon users.
+
+- `zone_id`
+  A Nova-style in-instance identifier derived from valid dungeon GUIDs. This is the primary same-dungeon continuity signal.
+
+- `party`
+  A snapshot of party members at run start. Each member stores `name`, `class`, `level`, and inferred `role`.
+
+- `role`
+  Inferred from class constraints plus a few special signals. For example, priests in Shadowform are treated as damage dealers, and paladins using Righteous Fury are treated as likely tanks.
+
+- `replacements`
+  Counts valid replacements after a run that began with a full five-player party. The tracker compares current names against the original five-player snapshot.
+
+- `deaths`
+  Stores party death snapshots with `class` and `level`.
+
+- `first_death`
+  Stores only the first tracked party death and includes:
+  - `timestamp`: seconds since run start
+  - `num_bosses_beaten`: size of `boss_timer` at the moment of death
+  - `class`: class of the dead player
+
+- `boss_timer`
+  Stores boss kill durations as `{ boss_id, duration }`. If a player releases spirit during an active boss timer before seeing the boss die, that timer is stored as `-1`.
+
+- `boss_loot`
+  Maps `boss_id -> loot_id`. If a boss remains unresolved when the run ends, its value becomes `-1`.
+
+- `pending_boss_loot_queue`
+  Active-run-only queue of bosses still waiting for tracked loot resolution.
+
+- `starting_money` and `gold_earned`
+  Track money in copper. `gold_earned` is net change and can be negative.
+
+- `starting_xp` and `xp_gained`
+  Track player XP progress during the run. `starting_xp` is only stored on the active run.
+
+- `green_drops`, `blue_drops`, `purple_drops`
+  Count non-boss loot drops by rarity. These should reflect loot that is rolled off, not boss loot resolution.
+
+## UI
+
+### Minimap Button
+
+The addon provides a minimap launcher button that:
+- opens and closes the main addon window
+- can be dragged around the minimap
+- remembers its angle between sessions
+
+### Slash Commands
+
+The following slash commands open the main window:
+- `/dungeonoracle`
+- `/do`
+
+### Main Window
+
+The main window contains three tabs:
+
+- `My Data`
+  Shows the active run, then completed runs from newest to oldest. Rows display:
+  - `Run ID`
+  - `Zone ID`
+  - `Dungeon Name`
+
+- `Upload Instructions`
+  Explains the manual export flow and provides the upload URL plus the SavedVariables path.
+
+- `Settings`
+  Lets the player toggle:
+  - minimap button visibility
+  - tracker window visibility
+
+### My Data Hover Tooltip
+
+Hovering an active or completed run row shows a details tooltip with:
+- dungeon name
+- run ID
+- zone ID
+- started time
+- ended time or active state
+- runtime
+- party composition
+- number of deaths
+- first death class
+- bosses beaten
+- money earned
+- XP gained
+- boss loot lines in `boss name - loot name` form
+- other loot counts by rarity
+
+### In-Dungeon Tracker Window
+
+The tracker window is draggable and currently shows:
+- runtime
+- outside-instance reset timer
+- recorder name
+- run ID
+- zone ID
+- boss timer
+- most recent boss result
+- loot rarity counters
+- money earned
+- XP gained
+
+The lifecycle log system still exists internally for testing, but the visible tracker window is currently kept compact rather than log-heavy.
+
+## Sharing Model
+
+DungeonOracle does not yet attempt full run-data synchronization across players. Its current multiplayer coordination is intentionally narrow:
+
+- addon users announce themselves to the party
+- addon users elect a recorder alphabetically by full player name
+- the recorder generates and broadcasts the shared `run_id`
+- other addon users adopt that `run_id`
+
+This means:
+- `run_id` can match across multiple players for later offline merging
+- most analytics are still tracked locally by each client
+
+## Boss and Loot Tracking
+
+Boss tracking works like this:
+- bosses are detected by NPC ID against the active dungeon definition
+- boss engage time is recorded when a tracked boss enters combat
+- boss kill time is recorded when that same boss dies
+- resolved duration is written to `boss_timer`
+
+Boss loot tracking works like this:
+- tracked loot items are identified from loot events
+- when a tracked item belongs to exactly one boss, it maps directly
+- when multiple bosses can drop the same item, the tracker uses the pending boss queue to resolve the most likely source boss
+- once a boss gets resolved loot, it is removed from the queue
+- unresolved queued bosses are written as `-1` when the run ends
+
+## Dungeon Data
+
+The `DungeonData/` directory contains the static metadata for supported dungeons.
+
+Each dungeon file defines:
+- the internal dungeon key
+- the display name
+- optional map matching data
+- aliases when needed
+- tracked bosses
+- tracked loot per boss
+- reverse loot lookup via `loot_to_bosses`
+
+The shared schema for dungeon definition files lives in:
+
+- [DungeonData/schema.md](C:/Users/Arthur/Software%20Dev/Personal%20Projects/DungeonOracle/DungeonData/schema.md)
+
+## Realm Data
+
+The `RealmData/` directory contains small static realm metadata used by the tracker.
+
+Current usage:
+- `HardcoreRealms.lua`
+  A set of normalized realm names used to determine whether a run should be tagged with `hardcore = true`.
 
 ## Repository Layout
 
@@ -43,6 +251,8 @@ DungeonOracle/
 +- DungeonData/
 |  +- schema.md
 |  +- dungeon definition files
++- RealmData/
+|  +- HardcoreRealms.lua
 +- DungeonOracle.lua
 +- DungeonOracle.toc
 +- README.md
@@ -53,48 +263,42 @@ DungeonOracle/
 
 ### `DungeonOracle.lua`
 
-Addon bootstrap.
-
-Responsibilities:
+Bootstrap responsibilities:
 - create the shared addon namespace
-- register the slash command
+- register slash commands
 - initialize UI and tracker on login
 - forward runtime events to the tracker
 
 ### `Core/Tracker.lua`
 
-Runtime dungeon tracking.
-
-Current responsibilities:
+Runtime responsibilities:
 - identify supported dungeon contexts
-- resolve `zone_id` from valid GUID sources
-- create new runs
-- reactivate matching stored runs
-- detect same-dungeon new-instance transitions
-- manage the outside-instance timeout
-- send lifecycle updates to the dungeon UI log
+- resolve `zone_id`
+- manage run creation, continuation, reactivation, and completion
+- elect and track the recorder
+- broadcast and adopt shared `run_id` values
+- collect party, death, boss, loot, money, and XP analytics
+- send live state to the tracker UI
 
 ### `Core/Database.lua`
 
-SavedVariables storage for the live branch.
-
-Current responsibilities:
-- initialize the database
+Persistence responsibilities:
+- initialize SavedVariables
 - store settings
 - persist one `active_run`
 - archive completed runs into `records`
-- reactivate a stored run by `dungeon_name` and `zone_id`
+- copy nested run structures safely between active and archived states
 
 ### `Core/UI.lua`
 
-Presentation layer only.
-
-Current UI pieces:
+Presentation responsibilities:
 - minimap launcher button
-- main addon window
-- settings tab
-- upload instructions tab
-- in-dungeon tracker window
+- main addon window and tabs
+- `My Data` table rendering
+- hover tooltips for run details
+- upload instructions pane
+- settings pane
+- compact in-dungeon tracker window
 
 ## Current SavedVariables Shape
 
@@ -103,189 +307,87 @@ DungeonOracleDB = {
     settings = {
         show_minimap_button = true,
         show_tracker_window = true,
+        minimap_button_angle = 45,
+        tracker_window_position = {
+            left = 32,
+            bottom = 220,
+        },
     },
     active_run = {
         dungeon_name = "The Stockade",
-        run_id = "17832434-8261-4444-9894-c5a70c25cc54",
-        zone_id = 13936,
-        started_at = 1783243482,
-        outside_instance_started_at = 1783243487,
-        hardcore = false,
+        run_id = "888d1a7e3a9148b0",
+        zone_id = 24252,
+        started_at = 1783264816,
+        outside_instance_started_at = 1783266076,
+        hardcore = true,
         party = {
             {
-                name = "Player-Realm",
+                name = "Nossron",
                 class = "WARRIOR",
-                level = 60.5,
-                role = "TANK",
-            },
-            {
-                name = "Mage-Realm",
-                class = "MAGE",
                 level = 60,
-                role = "DAMAGER",
+                role = "TANK",
             },
         },
         replacements = 0,
-        deaths = {
-            {
-                class = "WARRIOR",
-                level = 28,
-            },
-        },
+        deaths = {},
+        first_death = nil,
         boss_timer = {
             {
-                boss_id = 1716,
-                duration = 42, -- -1 means the timer failed after spirit release
+                boss_id = 1666,
+                duration = 17,
             },
         },
         boss_loot = {
-            [1716] = 5191, -- -1 means no tracked loot was resolved before the run ended
+            [1666] = -1,
         },
+        starting_money = 245512,
+        gold_earned = 1324,
+        starting_xp = 12450,
+        xp_gained = 820,
+        green_drops = 3,
+        blue_drops = 1,
+        purple_drops = 0,
+        pending_boss_loot_queue = {},
     },
     records = {
         {
             dungeon_name = "The Stockade",
-            run_id = "17832434-6632-4837-82c5-5da85f75b6a6",
-            zone_id = 13912,
-            started_at = 1783243466,
-            outside_instance_started_at = 1783243471,
-            ended_at = 1783243482,
-            hardcore = false,
+            run_id = "888d1a7e3a9148b0",
+            zone_id = 24252,
+            started_at = 1783264816,
+            outside_instance_started_at = 1783266076,
+            ended_at = 1783266106,
+            hardcore = true,
             party = {
                 {
-                    name = "Player-Realm",
+                    name = "Nossron",
                     class = "WARRIOR",
-                    level = 60.5,
-                    role = "TANK",
-                },
-                {
-                    name = "Mage-Realm",
-                    class = "MAGE",
                     level = 60,
-                    role = "DAMAGER",
+                    role = "TANK",
                 },
             },
             replacements = 0,
-            deaths = {
-                {
-                    class = "WARRIOR",
-                    level = 28,
-                },
-            },
+            deaths = {},
+            first_death = nil,
             boss_timer = {
                 {
-                    boss_id = 1716,
-                    duration = 42, -- -1 means the timer failed after spirit release
+                    boss_id = 1666,
+                    duration = 17,
                 },
             },
             boss_loot = {
-                [1716] = 5191, -- -1 means no tracked loot was resolved before the run ended
+                [1666] = -1,
             },
+            starting_money = 245512,
+            gold_earned = 1324,
+            xp_gained = 820,
+            green_drops = 3,
+            blue_drops = 1,
+            purple_drops = 0,
         },
     },
 }
 ```
-
-### Field Notes
-
-- `settings`
-  Persistent addon preferences.
-
-- `active_run`
-  The currently live dungeon run, if one exists.
-
-- `records`
-  Archived completed runs.
-
-- `dungeon_name`
-  The player-facing dungeon name.
-
-- `run_id`
-  A UUID-like identifier used to distinguish runs in local storage.
-
-- `zone_id`
-  A Nova-style in-instance identifier derived from valid dungeon GUIDs. This is the key signal used to distinguish one run from another within the same dungeon.
-
-- `started_at`
-  The Unix timestamp when the run began.
-
-- `outside_instance_started_at`
-  The Unix timestamp when the player left the dungeon while the run was still active.
-
-- `ended_at`
-  The Unix timestamp when the run was archived as complete.
-
-- `hardcore`
-  `true` when the run occurred on a realm listed in `RealmData/HardcoreRealms.lua`, otherwise `false`.
-
-- `party`
-  A run snapshot of each player’s name, class, level, and inferred role. When a tracked player levels during the run, the stored `level` is increased by `0.5`.
-
-- `replacements`
-  The number of valid replacement players detected after a run that started as a full five-player group. Replacement checks now compare player names against the original five-player snapshot.
-
-- `deaths`
-  A list of tracked party death snapshots. Each entry stores the dead player’s class and stored level value.
-
-- `boss_timer`
-  A list of completed boss kill timers. Each entry stores the tracked `boss_id` and the kill `duration` in seconds. A value of `-1` means the timer failed because the player released spirit before seeing the boss die.
-
-- `boss_loot`
-  A map from tracked `boss_id` to the tracked `loot_id` recorded for that boss. A value of `-1` means the boss still needed loot resolution when the run ended.
-
-## Dungeon Data
-
-The `DungeonData/` directory contains static metadata for supported dungeons.
-
-Each dungeon file defines:
-- the internal dungeon key
-- the display name
-- optional map matching data
-- aliases when needed
-- tracked bosses
-- tracked loot per boss
-- reverse loot lookup via `loot_to_bosses`
-
-## Realm Data
-
-The `RealmData/` directory contains small static realm metadata used by the
-tracker.
-
-Current usage:
-- `HardcoreRealms.lua`
-  A set of normalized realm names used to determine whether a run should be
-  tagged with `hardcore = true`.
-
-The shared schema for all dungeon definition files now lives in:
-
-- [DungeonData/schema.md](C:/Users/Arthur/Software%20Dev/Personal%20Projects/DungeonOracle/DungeonData/schema.md)
-
-That file is the single source of truth for dungeon file structure.
-
-## Current Run Flow
-
-The live branch currently follows this simplified local flow:
-
-1. The player enters a supported dungeon.
-2. The tracker waits until it can resolve a valid `zone_id`.
-3. Once `zone_id` is known, the tracker decides whether to:
-   - continue the current active run
-   - reactivate a stored run whose `dungeon_name` and `zone_id` match
-   - start a fresh run
-4. If the player leaves the dungeon, a 30-second outside timer begins.
-5. If the player returns before that timer expires, the run continues.
-6. If the timer expires, the run is archived into `records`.
-7. If the player enters the same dungeon with a different `zone_id`, the old run is completed and a new run begins.
-
-## Tracker Window
-
-The in-dungeon tracker window currently shows:
-- reset timer
-- run ID
-- zone ID
-- lifecycle log messages
-
-This window is meant to support testing and make run-state transitions visible without printing to chat.
 
 ## Upload Model
 
@@ -293,8 +395,9 @@ DungeonOracle uses manual export.
 
 Expected flow:
 1. The addon records data locally in SavedVariables.
-2. The player uploads the SavedVariables file manually.
-3. Data processing happens outside the game.
+2. The player opens the `Upload Instructions` tab.
+3. The player uploads the SavedVariables file manually.
+4. Data processing and eventual merging happen outside the game.
 
 SavedVariables path:
 
@@ -314,15 +417,7 @@ The reference files are preserved for historical context only:
 - `Core/TrackerReference.lua`
 - `Core/DatabaseReference.lua`
 
-They are not part of the live tracking flow and should be treated as read-only reference material.
-
-## Development Notes
-
-Important current repo rules:
-- keep the live tracker logic simple and explicit
-- do not add unrequested functionality
-- treat the reference files as read-only
-- use `DungeonData/schema.md` as the shared schema reference for dungeon files
+They are not part of the live runtime flow.
 
 ## Installation
 
@@ -335,9 +430,10 @@ World of Warcraft\_classic_era_\Interface\AddOns\DungeonOracle
 ## Status
 
 The current branch is stable around:
-- local run tracking
-- `zone_id`-based continuation and reactivation
-- 30-second outside-instance completion
-- compact dungeon UI visibility
+- `zone_id`-based run tracking
+- recorder-based shared `run_id`
+- local analytics capture
+- compact live UI
+- manual data export
 
-Future analytics fields can be layered back in from here once they are reintroduced deliberately.
+Full cross-player data sharing and authoritative multiplayer reconciliation have not been implemented yet.
