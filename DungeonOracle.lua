@@ -21,6 +21,7 @@ local function handleSlashCommand()
 end
 
 SLASH_DUNGEONORACLE1 = "/dungeonoracle"
+SLASH_DUNGEONORACLE2 = "/do"
 SlashCmdList.DUNGEONORACLE = handleSlashCommand
 
 eventFrame:RegisterEvent("PLAYER_LOGIN")

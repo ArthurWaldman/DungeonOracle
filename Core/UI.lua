@@ -64,6 +64,20 @@ local function setShowTrackerWindowSetting(value)
     end
 end
 
+local function getMinimapButtonAngleSetting()
+    if DungeonOracle.Database and DungeonOracle.Database.GetSetting then
+        return tonumber(DungeonOracle.Database.GetSetting("minimap_button_angle"))
+    end
+
+    return nil
+end
+
+local function setMinimapButtonAngleSetting(value)
+    if DungeonOracle.Database and DungeonOracle.Database.SetSetting then
+        DungeonOracle.Database.SetSetting("minimap_button_angle", value)
+    end
+end
+
 local function getRecordCount()
     if DungeonOracle.Database and DungeonOracle.Database.GetRecordCount then
         return DungeonOracle.Database.GetRecordCount()
@@ -1284,7 +1298,7 @@ end
 -- If we later support dragging, this helper can remain the single place that
 -- converts saved position data into screen coordinates.
 local function positionMinimapButton(button)
-    local angle = math.rad(45)
+    local angle = math.rad(getMinimapButtonAngleSetting() or 45)
     local xOffset = math.cos(angle) * MINIMAP_RADIUS
     local yOffset = math.sin(angle) * MINIMAP_RADIUS
 
@@ -1292,12 +1306,44 @@ local function positionMinimapButton(button)
     button:SetPoint("CENTER", Minimap, "CENTER", xOffset, yOffset)
 end
 
+local function updateMinimapButtonAngleFromCursor(button)
+    local cursorX
+    local cursorY
+    local minimapX
+    local minimapY
+    local minimapScale
+    local angle
+
+    if not button or not Minimap or not GetCursorPosition or not Minimap.GetCenter then
+        return
+    end
+
+    cursorX, cursorY = GetCursorPosition()
+    minimapScale = Minimap:GetEffectiveScale() or 1
+    minimapX, minimapY = Minimap:GetCenter()
+
+    if not cursorX or not cursorY or not minimapX or not minimapY or minimapScale == 0 then
+        return
+    end
+
+    cursorX = cursorX / minimapScale
+    cursorY = cursorY / minimapScale
+    angle = math.deg(math.atan2(cursorY - minimapY, cursorX - minimapX))
+
+    setMinimapButtonAngleSetting(angle)
+    positionMinimapButton(button)
+end
+
 -- Builds the minimap launcher button used to open and close the main window.
 local function createMinimapButton()
-    local button = CreateFrame("Button", "DungeonOracleMinimapButton", Minimap)
+    local button = CreateFrame("Button", "DungeonOracleMinimapButton", MinimapCluster or Minimap or UIParent)
+    local dragSuppressWindowSeconds = 0.2
     button:SetSize(32, 32)
-    button:SetFrameStrata("MEDIUM")
-    button:RegisterForClicks("LeftButtonUp")
+    button:SetFrameStrata("HIGH")
+    button:SetFrameLevel((Minimap and Minimap:GetFrameLevel() or button:GetFrameLevel()) + 8)
+    button:EnableMouse(true)
+    button:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+    button:RegisterForDrag("LeftButton")
 
     local icon = button:CreateTexture(nil, "BACKGROUND")
     icon:SetSize(20, 20)
@@ -1315,19 +1361,36 @@ local function createMinimapButton()
     highlight:SetPoint("CENTER")
     highlight:SetTexture("Interface\\Minimap\\UI-Minimap-ZoomButton-Highlight")
 
-    button:SetScript("OnClick", function()
-        UI.ToggleMainWindow()
+    button:SetScript("OnClick", function(_, mouseButton)
+        if mouseButton == "LeftButton"
+            and (not button.lastDragEndedAt or (GetTime and (GetTime() - button.lastDragEndedAt) > dragSuppressWindowSeconds)) then
+            UI.ToggleMainWindow()
+        end
     end)
 
     button:SetScript("OnEnter", function(self)
         GameTooltip:SetOwner(self, "ANCHOR_LEFT")
         GameTooltip:SetText("Dungeon Oracle")
-        GameTooltip:AddLine("Open the Dungeon Oracle menu.", 1, 1, 1)
+        GameTooltip:AddLine("Left-click to open Dungeon Oracle.", 1, 1, 1)
+        GameTooltip:AddLine("Drag to move the minimap button.", 0.8, 0.8, 0.8)
         GameTooltip:Show()
     end)
 
     button:SetScript("OnLeave", function()
         GameTooltip:Hide()
+    end)
+
+    button:SetScript("OnDragStart", function(self)
+        self.isDragging = true
+        self:SetScript("OnUpdate", updateMinimapButtonAngleFromCursor)
+        updateMinimapButtonAngleFromCursor(self)
+    end)
+
+    button:SetScript("OnDragStop", function(self)
+        self.isDragging = nil
+        self.lastDragEndedAt = GetTime and GetTime() or 0
+        self:SetScript("OnUpdate", nil)
+        updateMinimapButtonAngleFromCursor(self)
     end)
 
     positionMinimapButton(button)
