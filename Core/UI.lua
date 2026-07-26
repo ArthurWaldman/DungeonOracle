@@ -1185,7 +1185,12 @@ end
 
 -- Public: shows the in-dungeon tracker when a run becomes active.
 function UI.ShowTrackerWindow()
-    if not UI.trackerFrame or not getShowTrackerWindowSetting() then
+    local hasTrackerContext = DungeonOracle
+        and DungeonOracle.Tracker
+        and DungeonOracle.Tracker.state
+        and (DungeonOracle.Tracker.state.active_run or DungeonOracle.Tracker.state.current_dungeon)
+
+    if not UI.trackerFrame or not getShowTrackerWindowSetting() or not hasTrackerContext then
         return
     end
 
